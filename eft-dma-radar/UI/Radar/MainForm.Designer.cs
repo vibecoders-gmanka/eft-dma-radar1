@@ -101,20 +101,6 @@ namespace eft_dma_radar.UI.Radar
             label34 = new Label();
             checkBox_QuestHelper_Enabled = new CheckBox();
             checkedListBox_QuestHelper = new CheckedListBox();
-            flowLayoutPanel_WebRadarSettings = new FlowLayoutPanel();
-            label9 = new Label();
-            label25 = new Label();
-            button_WebRadarStart = new Button();
-            checkBox_WebRadarUPNP = new CheckBox();
-            label_WebRadarHost = new Label();
-            textBox_WebRadarBindIP = new TextBox();
-            label_WebRadarPort = new Label();
-            textBox_WebRadarPort = new TextBox();
-            label_WebRadarTickRate = new Label();
-            textBox_WebRadarTickRate = new TextBox();
-            label_WebRadarPassword = new Label();
-            textBox_WebRadarPassword = new TextBox();
-            linkLabel_WebRadarLink = new LinkLabel();
             flowLayoutPanel_MemWriteCheckbox = new FlowLayoutPanel();
             checkBox_EnableMemWrite = new CheckBox();
             flowLayoutPanel_MemWrites = new FlowLayoutPanel();
@@ -300,7 +286,6 @@ namespace eft_dma_radar.UI.Radar
             flowLayoutPanel5.SuspendLayout();
             flowLayoutPanel_Loot_Containers.SuspendLayout();
             flowLayoutPanel1.SuspendLayout();
-            flowLayoutPanel_WebRadarSettings.SuspendLayout();
             flowLayoutPanel_MemWriteCheckbox.SuspendLayout();
             flowLayoutPanel_MemWrites.SuspendLayout();
             flowLayoutPanel_Aimbot.SuspendLayout();
@@ -682,7 +667,6 @@ namespace eft_dma_radar.UI.Radar
             flowLayoutPanel_Settings.Controls.Add(flowLayoutPanel_RadarSettings);
             flowLayoutPanel_Settings.Controls.Add(flowLayoutPanel5);
             flowLayoutPanel_Settings.Controls.Add(flowLayoutPanel1);
-            flowLayoutPanel_Settings.Controls.Add(flowLayoutPanel_WebRadarSettings);
             flowLayoutPanel_Settings.Controls.Add(flowLayoutPanel_MemWriteCheckbox);
             flowLayoutPanel_Settings.Controls.Add(flowLayoutPanel_MemWrites);
             flowLayoutPanel_Settings.Controls.Add(flowLayoutPanel_MonitorSettings);
@@ -1170,174 +1154,13 @@ namespace eft_dma_radar.UI.Radar
             checkedListBox_QuestHelper.Size = new Size(343, 148);
             checkedListBox_QuestHelper.TabIndex = 48;
             // 
-            // flowLayoutPanel_WebRadarSettings
-            // 
-            flowLayoutPanel_WebRadarSettings.AutoSize = true;
-            flowLayoutPanel_WebRadarSettings.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            flowLayoutPanel_WebRadarSettings.BorderStyle = BorderStyle.FixedSingle;
-            flowLayoutPanel_WebRadarSettings.Controls.Add(label9);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(label25);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(button_WebRadarStart);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(checkBox_WebRadarUPNP);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(label_WebRadarHost);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(textBox_WebRadarBindIP);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(label_WebRadarPort);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(textBox_WebRadarPort);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(label_WebRadarTickRate);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(textBox_WebRadarTickRate);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(label_WebRadarPassword);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(textBox_WebRadarPassword);
-            flowLayoutPanel_WebRadarSettings.Controls.Add(linkLabel_WebRadarLink);
-            flowLayoutPanel_WebRadarSettings.Dock = DockStyle.Top;
-            flowLayoutPanel_Settings.SetFlowBreak(flowLayoutPanel_WebRadarSettings, true);
-            flowLayoutPanel_WebRadarSettings.Location = new Point(3, 537);
-            flowLayoutPanel_WebRadarSettings.Name = "flowLayoutPanel_WebRadarSettings";
-            flowLayoutPanel_WebRadarSettings.Size = new Size(1230, 60);
-            flowLayoutPanel_WebRadarSettings.TabIndex = 5;
-            // 
-            // label9
-            // 
-            label9.AutoSize = true;
-            flowLayoutPanel_WebRadarSettings.SetFlowBreak(label9, true);
-            label9.Font = new Font("Segoe UI Semibold", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label9.Location = new Point(3, 0);
-            label9.Name = "label9";
-            label9.Size = new Size(142, 21);
-            label9.TabIndex = 46;
-            label9.Text = "Web Radar Server";
-            // 
-            // label25
-            // 
-            label25.Location = new Point(3, 21);
-            label25.Name = "label25";
-            label25.Size = new Size(0, 0);
-            label25.TabIndex = 60;
-            label25.Text = "label25";
-            // 
-            // button_WebRadarStart
-            // 
-            button_WebRadarStart.Location = new Point(9, 24);
-            button_WebRadarStart.Name = "button_WebRadarStart";
-            button_WebRadarStart.Size = new Size(96, 31);
-            button_WebRadarStart.TabIndex = 56;
-            button_WebRadarStart.Text = "Start";
-            button_WebRadarStart.UseVisualStyleBackColor = true;
-            button_WebRadarStart.Click += button_WebRadarStart_Click;
-            // 
-            // checkBox_WebRadarUPNP
-            // 
-            checkBox_WebRadarUPNP.Anchor = AnchorStyles.Right;
-            checkBox_WebRadarUPNP.AutoSize = true;
-            checkBox_WebRadarUPNP.Checked = true;
-            checkBox_WebRadarUPNP.CheckState = CheckState.Checked;
-            checkBox_WebRadarUPNP.Location = new Point(111, 30);
-            checkBox_WebRadarUPNP.Name = "checkBox_WebRadarUPNP";
-            checkBox_WebRadarUPNP.Size = new Size(55, 19);
-            checkBox_WebRadarUPNP.TabIndex = 57;
-            checkBox_WebRadarUPNP.Text = "UPnP";
-            checkBox_WebRadarUPNP.UseVisualStyleBackColor = true;
-            checkBox_WebRadarUPNP.CheckedChanged += checkBox_WebRadarUPNP_CheckedChanged;
-            // 
-            // label_WebRadarHost
-            // 
-            label_WebRadarHost.Anchor = AnchorStyles.Right;
-            label_WebRadarHost.AutoSize = true;
-            label_WebRadarHost.Location = new Point(172, 32);
-            label_WebRadarHost.Name = "label_WebRadarHost";
-            label_WebRadarHost.Size = new Size(44, 15);
-            label_WebRadarHost.TabIndex = 49;
-            label_WebRadarHost.Text = "Bind IP";
-            // 
-            // textBox_WebRadarBindIP
-            // 
-            textBox_WebRadarBindIP.Anchor = AnchorStyles.Right;
-            textBox_WebRadarBindIP.Location = new Point(222, 28);
-            textBox_WebRadarBindIP.MaxLength = 128;
-            textBox_WebRadarBindIP.Name = "textBox_WebRadarBindIP";
-            textBox_WebRadarBindIP.Size = new Size(154, 23);
-            textBox_WebRadarBindIP.TabIndex = 48;
-            textBox_WebRadarBindIP.TextChanged += textBox_WebRadarHost_TextChanged;
-            // 
-            // label_WebRadarPort
-            // 
-            label_WebRadarPort.Anchor = AnchorStyles.Right;
-            label_WebRadarPort.AutoSize = true;
-            label_WebRadarPort.Location = new Point(382, 32);
-            label_WebRadarPort.Name = "label_WebRadarPort";
-            label_WebRadarPort.Size = new Size(29, 15);
-            label_WebRadarPort.TabIndex = 51;
-            label_WebRadarPort.Text = "Port";
-            // 
-            // textBox_WebRadarPort
-            // 
-            textBox_WebRadarPort.Anchor = AnchorStyles.Right;
-            textBox_WebRadarPort.Location = new Point(417, 28);
-            textBox_WebRadarPort.MaxLength = 5;
-            textBox_WebRadarPort.Name = "textBox_WebRadarPort";
-            textBox_WebRadarPort.Size = new Size(57, 23);
-            textBox_WebRadarPort.TabIndex = 50;
-            textBox_WebRadarPort.TextChanged += textBox_WebRadarPort_TextChanged;
-            // 
-            // label_WebRadarTickRate
-            // 
-            label_WebRadarTickRate.Anchor = AnchorStyles.Right;
-            label_WebRadarTickRate.AutoSize = true;
-            label_WebRadarTickRate.Location = new Point(480, 32);
-            label_WebRadarTickRate.Name = "label_WebRadarTickRate";
-            label_WebRadarTickRate.Size = new Size(80, 15);
-            label_WebRadarTickRate.TabIndex = 59;
-            label_WebRadarTickRate.Text = "Tick Rate (Hz)";
-            // 
-            // textBox_WebRadarTickRate
-            // 
-            textBox_WebRadarTickRate.Anchor = AnchorStyles.Right;
-            textBox_WebRadarTickRate.Location = new Point(566, 28);
-            textBox_WebRadarTickRate.MaxLength = 3;
-            textBox_WebRadarTickRate.Name = "textBox_WebRadarTickRate";
-            textBox_WebRadarTickRate.Size = new Size(43, 23);
-            textBox_WebRadarTickRate.TabIndex = 58;
-            textBox_WebRadarTickRate.Text = "60";
-            textBox_WebRadarTickRate.TextChanged += textBox_WebRadarTickRate_TextChanged;
-            // 
-            // label_WebRadarPassword
-            // 
-            label_WebRadarPassword.Anchor = AnchorStyles.Right;
-            label_WebRadarPassword.AutoSize = true;
-            label_WebRadarPassword.Location = new Point(615, 32);
-            label_WebRadarPassword.Name = "label_WebRadarPassword";
-            label_WebRadarPassword.Size = new Size(57, 15);
-            label_WebRadarPassword.TabIndex = 53;
-            label_WebRadarPassword.Text = "Password";
-            // 
-            // textBox_WebRadarPassword
-            // 
-            textBox_WebRadarPassword.Anchor = AnchorStyles.Right;
-            textBox_WebRadarPassword.Location = new Point(678, 28);
-            textBox_WebRadarPassword.MaxLength = 10;
-            textBox_WebRadarPassword.Name = "textBox_WebRadarPassword";
-            textBox_WebRadarPassword.ReadOnly = true;
-            textBox_WebRadarPassword.Size = new Size(104, 23);
-            textBox_WebRadarPassword.TabIndex = 52;
-            // 
-            // linkLabel_WebRadarLink
-            // 
-            linkLabel_WebRadarLink.Anchor = AnchorStyles.Right;
-            linkLabel_WebRadarLink.AutoSize = true;
-            linkLabel_WebRadarLink.Location = new Point(788, 32);
-            linkLabel_WebRadarLink.Name = "linkLabel_WebRadarLink";
-            linkLabel_WebRadarLink.Size = new Size(42, 15);
-            linkLabel_WebRadarLink.TabIndex = 55;
-            linkLabel_WebRadarLink.TabStop = true;
-            linkLabel_WebRadarLink.Text = "http://";
-            linkLabel_WebRadarLink.LinkClicked += linkLabel_WebRadarLink_LinkClicked;
-            // 
             // flowLayoutPanel_MemWriteCheckbox
             // 
             flowLayoutPanel_MemWriteCheckbox.AutoSize = true;
             flowLayoutPanel_MemWriteCheckbox.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             flowLayoutPanel_MemWriteCheckbox.Controls.Add(checkBox_EnableMemWrite);
             flowLayoutPanel_Settings.SetFlowBreak(flowLayoutPanel_MemWriteCheckbox, true);
-            flowLayoutPanel_MemWriteCheckbox.Location = new Point(3, 603);
+            flowLayoutPanel_MemWriteCheckbox.Location = new Point(3, 537);
             flowLayoutPanel_MemWriteCheckbox.Name = "flowLayoutPanel_MemWriteCheckbox";
             flowLayoutPanel_MemWriteCheckbox.Size = new Size(190, 25);
             flowLayoutPanel_MemWriteCheckbox.TabIndex = 62;
@@ -1385,7 +1208,7 @@ namespace eft_dma_radar.UI.Radar
             flowLayoutPanel_MemWrites.Controls.Add(flowLayoutPanel_WideLean);
             flowLayoutPanel_MemWrites.Dock = DockStyle.Top;
             flowLayoutPanel_Settings.SetFlowBreak(flowLayoutPanel_MemWrites, true);
-            flowLayoutPanel_MemWrites.Location = new Point(3, 634);
+            flowLayoutPanel_MemWrites.Location = new Point(3, 568);
             flowLayoutPanel_MemWrites.Name = "flowLayoutPanel_MemWrites";
             flowLayoutPanel_MemWrites.Size = new Size(1230, 328);
             flowLayoutPanel_MemWrites.TabIndex = 1;
@@ -2172,7 +1995,7 @@ namespace eft_dma_radar.UI.Radar
             flowLayoutPanel_MonitorSettings.Controls.Add(button_DetectRes);
             flowLayoutPanel_MonitorSettings.Dock = DockStyle.Top;
             flowLayoutPanel_Settings.SetFlowBreak(flowLayoutPanel_MonitorSettings, true);
-            flowLayoutPanel_MonitorSettings.Location = new Point(3, 968);
+            flowLayoutPanel_MonitorSettings.Location = new Point(3, 902);
             flowLayoutPanel_MonitorSettings.Name = "flowLayoutPanel_MonitorSettings";
             flowLayoutPanel_MonitorSettings.Size = new Size(1230, 70);
             flowLayoutPanel_MonitorSettings.TabIndex = 2;
@@ -2275,7 +2098,7 @@ namespace eft_dma_radar.UI.Radar
             flowLayoutPanel_ESPSettings.Controls.Add(flowLayoutPanel4);
             flowLayoutPanel_ESPSettings.Dock = DockStyle.Top;
             flowLayoutPanel_Settings.SetFlowBreak(flowLayoutPanel_ESPSettings, true);
-            flowLayoutPanel_ESPSettings.Location = new Point(3, 1044);
+            flowLayoutPanel_ESPSettings.Location = new Point(3, 978);
             flowLayoutPanel_ESPSettings.Name = "flowLayoutPanel_ESPSettings";
             flowLayoutPanel_ESPSettings.Size = new Size(1230, 311);
             flowLayoutPanel_ESPSettings.TabIndex = 3;
@@ -3386,8 +3209,6 @@ namespace eft_dma_radar.UI.Radar
             flowLayoutPanel_Loot_Containers.PerformLayout();
             flowLayoutPanel1.ResumeLayout(false);
             flowLayoutPanel1.PerformLayout();
-            flowLayoutPanel_WebRadarSettings.ResumeLayout(false);
-            flowLayoutPanel_WebRadarSettings.PerformLayout();
             flowLayoutPanel_MemWriteCheckbox.ResumeLayout(false);
             flowLayoutPanel_MemWriteCheckbox.PerformLayout();
             flowLayoutPanel_MemWrites.ResumeLayout(false);
@@ -3621,19 +3442,6 @@ namespace eft_dma_radar.UI.Radar
         private FlowLayoutPanel flowLayoutPanel_Loot;
         private Label label20;
         private FlowLayoutPanel flowLayoutPanel2;
-        private FlowLayoutPanel flowLayoutPanel_WebRadarSettings;
-        private Label label9;
-        private Label label_WebRadarHost;
-        private TextBox textBox_WebRadarBindIP;
-        private Label label_WebRadarPort;
-        private TextBox textBox_WebRadarPort;
-        private Label label_WebRadarPassword;
-        private TextBox textBox_WebRadarPassword;
-        private LinkLabel linkLabel_WebRadarLink;
-        private Button button_WebRadarStart;
-        private CheckBox checkBox_WebRadarUPNP;
-        private TextBox textBox_WebRadarTickRate;
-        private Label label_WebRadarTickRate;
         private Label label_EspQuestHelperDist;
         private TrackBar trackBar_EspQuestHelperDist;
         private Label label21;
@@ -3646,7 +3454,6 @@ namespace eft_dma_radar.UI.Radar
         private Label label22;
         private Label label23;
         private Label label24;
-        private Label label25;
         private Label label26;
         private CheckBox checkBox_MoveSpeed;
         private CheckBox checkBox_ESP_FireportAim;

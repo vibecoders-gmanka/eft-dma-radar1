@@ -11,7 +11,7 @@ using eft_dma_radar.Tarkov.GameWorld.Exits;
 using System.Runtime;
 using eft_dma_shared.Common.DMA;
 using eft_dma_shared.Common.Unity;
-using eft_dma_shared.Common.Misc.Commercial;
+using eft_dma_shared.Common.Misc;
 
 namespace eft_dma_radar.Tarkov
 {
@@ -371,7 +371,6 @@ namespace eft_dma_radar.Tarkov
         /// Get the Code Cave Address for NativeHook.
         /// </summary>
         /// <exception cref="Exception"></exception>
-        [Obfuscation(Feature = "Virtualization", Exclude = false)]
         public override ulong GetCodeCave()
         {
             var @class = MonoLib.MonoClass.Find("Assembly-CSharp", "EFT.TarkovApplication", out _);

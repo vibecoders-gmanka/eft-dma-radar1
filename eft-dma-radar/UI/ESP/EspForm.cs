@@ -1,4 +1,5 @@
-﻿using eft_dma_radar.Tarkov;
+﻿using eft_dma_shared.Common.Misc;
+using eft_dma_radar.Tarkov;
 using eft_dma_radar.Tarkov.EFTPlayer;
 using eft_dma_radar.Tarkov.Features;
 using eft_dma_radar.Tarkov.Features.MemoryWrites;
@@ -9,8 +10,6 @@ using eft_dma_radar.UI.Misc;
 using eft_dma_radar.UI.Radar;
 using eft_dma_shared.Common.ESP;
 using eft_dma_shared.Common.Features;
-using eft_dma_shared.Common.Misc;
-using eft_dma_shared.Common.Misc.Commercial;
 using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Unity;
