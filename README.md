@@ -10,6 +10,7 @@
 2. Open solution with visual studio
 3. Publish the `eft-dma-radar` or `arena-dma-radar` project
 4. If required, locate & move the `libSkiaSharp.dll` & `libHarfBuzzSharp.dll` from the `publish/runtimes` folder into `publish` folder
+5. Run `eft-dma-radar.exe` or `arena-dma-radar.exe` depending on what you've published
 
 ## Arena
 - Arena is supported and will be maintained going forward.
