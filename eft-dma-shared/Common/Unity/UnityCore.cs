@@ -1,4 +1,5 @@
 ﻿using eft_dma_shared.Common.DMA;
+using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Pools;
 using SkiaSharp;
 using System.ComponentModel;
@@ -7,6 +8,19 @@ using System.Runtime.InteropServices;
 
 namespace eft_dma_shared.Common.Unity
 {
+    public static class HashUtil
+    {
+        public static ulong RuntimeHash(string str)
+        {
+            unchecked
+            {
+                ulong hash = 5381;
+                foreach (char c in str)
+                    hash = ((hash << 5) + hash) + c;
+                return hash;
+            }
+        }
+    }    
     /// <summary>
     /// Unity Game Object Manager. Contains all Game Objects.
     /// </summary>
@@ -167,7 +181,7 @@ namespace eft_dma_shared.Common.Unity
                     return compClass;
             }
             throw new Exception("Component Not Found!");
-        }
+        }    
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -185,7 +199,17 @@ namespace eft_dma_shared.Common.Unity
         [FieldOffset(0x8)]
         public readonly ulong Component;
     }
+    public readonly struct ComponentPair
+    {
+        public readonly string Name;
+        public readonly ulong Component;
 
+        public ComponentPair(string name, ulong component)
+        {
+            Name = name;
+            Component = component;
+        }
+    }
     /// <summary>
     /// Most higher level EFT Assembly Classes and Game Objects.
     /// </summary>

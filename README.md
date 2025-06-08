@@ -1,26 +1,45 @@
+
 # Lone's EFT DMA Radar
 
 ![icon-static](https://github.com/user-attachments/assets/d3bc58ad-a987-4c94-bfe2-dd2236769f19)
 
 ## What is this?
-- This is an up-to-date build of Lone DMA EFT/Arena Radar. This is a standalone copy of the software with *No Restrictions*.
+- This is an up-to-date build of Lone DMA EFT/~~Arena Radar~~. This is a standalone copy of the software with *No Restrictions*.
 
 ## How do I start using this?
 1. Download & extract the solution
 2. Open solution with visual studio
-3. Publish the `eft-dma-radar` or `arena-dma-radar` project
+3. Publish the `eft-dma-radar` project
 4. If required, locate & move the `libSkiaSharp.dll` & `libHarfBuzzSharp.dll` from the `publish/runtimes` folder into `publish` folder
-5. Run `eft-dma-radar.exe` or `arena-dma-radar.exe` depending on what you've published
+5. Run `eft-dma-radar.exe`
 
 ## Arena
-- Arena is supported and will be maintained going forward.
+- Arena is *not* supported at this moment but will be updated eventually.
 
 ## Donations
-- If you would like to donate directly to Lone:
-  - Bitcoin: `bc1q7l4w7n3mt0rawztj0xl4me7mrnhjdr0hgjh2xp`
-  - Litecoin: `ltc1qlllsgdzq3dt2w2zchf7sxmy0t75sn4x6ethhez`
-  - Dogecoin: `DDiva1gAP1b9bi2cWfmZvDsQTQesxJAALw`
-  - Solana: `GYwdj8NpGG975oNY7s9mTjY92QhLYW7DpJoTjnGwDiQu`
+- If you would like to donate to x0m:
+  - Paypal: https://www.paypal.me/eftx0m?locale.x=en_NZ
+  - BTC: `1AzMqjpjaN5fyGQgZTByRqA2CzKHQSXkMr`
+  - LTC: `LWi2mP6GaDQbhDAzs4swiSEEowETRqCcLZ`
+  - ETH: `0x6fe7aee467b63fde7dbbf478dce6a0d7695ae496`
+  - USDT: `TYNZr9FL5dVtk1K5D5AwbiWt4UMbu9A7E3`
+
+## Special Thanks
+- Lone Survivor
+  - Open sourcing his `lone-dma` project & allowing us to extend its functionality significantly, none of this was possible without him
+   - [cant confirm if your crypto addresses are correct so i don't wanna add them]
+- Mambo
+  - Helping with quite a lot of things & especially stuff I didnt wanna do
+   - Paypal: https://paypal.me/MamboNoob?country.x=CA&locale.x=en_US
+   - BTC: `bc1qlw807xlyglfq6h33kg753npv7cstlms8yz7w2wrazp932u3zsdxqhpf583`
+- Marazm
+  - Keeping EFT & Arena maps updated
+   - https://boosty.to/dma_maps/donate
+   - USDT: `TWeRAuxsCFa8BHLZZbkz9aUHJcZwnGkiJx`
+   - BTC: `bc1q32enxjvfvzp30rpm39uzgwpdxcl57l264reevu`
+- xiaopaoliaofwen
+  - Various contributions & actively maintaining the 'main' fork
+    - https://buymeacoffee.com/kekmate
 
 ## Contact
 - For any inquiries or assistance, feel free to join the [EFT Educational Resources Discord Server](https://discord.gg/jGSnTCekdx). Please confine discussion to the [Lone DMA Section](https://discord.com/channels/1218731239599767632/1342207117704036382).

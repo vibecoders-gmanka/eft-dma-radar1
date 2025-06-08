@@ -4,6 +4,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using eft_dma_shared.Misc;
 
 namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
 {
@@ -179,12 +180,15 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
                     CodeCave = codeCave;
                     SetCache();
                     LoneLogging.WriteLine("[NativeHook]: Initialize() -> OK");
+                    NotificationsShared.Info("[NativeHook]: Initialize OK");
+
                     return true;
                 }
                 catch (Exception ex)
                 {
                     CodeCave = default;
                     LoneLogging.WriteLine($"[NativeHook]: Initialize() -> Exception: {ex}");
+                    NotificationsShared.Warning($"[NativeHook]: Initialize Exception");
                     return false;
                 }
                 finally
@@ -213,7 +217,7 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
         /// <returns>True if initialized OK from Cache, otherwise False.</returns>
         private static bool TryInitFromCache()
         {
-            if (Memory.PID == Cache.PID && Cache.CodeCave != 0x0)
+            if (Memory.Process.PID == Cache.PID && Cache.CodeCave != 0x0)
             {
                 UnityPlayerDll = Cache.UnityPlayerDll;
                 MonoDll = Cache.MonoDll;
@@ -221,6 +225,7 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
                 HookedMonoFunc = Cache.HookedMonoFunc;
                 CodeCave = Cache.CodeCave;
                 LoneLogging.WriteLine("[NativeHook]: Initialize() -> Initialized from cache!");
+                    NotificationsShared.Info("[NativeHook]: Initialized from cache!");
                 return true;
             }
             return false;
@@ -231,7 +236,7 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
         /// </summary>
         private static void SetCache()
         {
-            Cache.PID = Memory.PID;
+            Cache.PID = Memory.Process.PID;
             Cache.UnityPlayerDll = UnityPlayerDll;
             Cache.MonoDll = MonoDll;
             Cache.HookedMonoFuncAddress = HookedMonoFuncAddress;
@@ -307,6 +312,7 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
                     }
                 }
                 LoneLogging.WriteLine("[NativeHook]: Call() -> *DANGER* Method was never executed. Game may crash.");
+                NotificationsShared.Warning("[NativeHook]: Call() -> *DANGER* Method was never executed. Game may crash.");
                 return null;
             }
         }

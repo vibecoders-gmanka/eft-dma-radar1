@@ -1,5 +1,5 @@
 ﻿using eft_dma_radar.Tarkov.Loot;
-using eft_dma_radar.UI.Radar;
+
 
 namespace eft_dma_radar.UI.LootFilters
 {
@@ -13,7 +13,7 @@ namespace eft_dma_radar.UI.LootFilters
         public static bool ShowFood;
         public static bool ShowBackpacks;
 
-        private static bool ShowQuestItems => MainForm.Config.QuestHelper.Enabled;
+        private static bool ShowQuestItems => Program.Config.QuestHelper.Enabled;
 
         /// <summary>
         /// Creates a loot filter based on current Loot Filter settings.

@@ -1,10 +1,11 @@
-﻿using eft_dma_shared.Common.Misc;
-using eft_dma_radar.Tarkov.API;
+﻿using eft_dma_radar.Tarkov.API;
 using eft_dma_radar.Tarkov.EFTPlayer.Plugins;
 using eft_dma_radar.Tarkov.Features.MemoryWrites.Patches;
-using eft_dma_radar.UI.ESP;
+using eft_dma_radar.UI.Misc;
+using eft_dma_radar.UI.Pages;
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Features;
+using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Unity;
@@ -107,7 +108,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 throw new Exception("Invalid Player Side/Faction!");
 
             AccountID = GetAccountID();
-            bool isAI = Memory.ReadValue<bool>(this + Offsets.ObservedPlayerView.IsAI);
+            var isAI = Memory.ReadValue<bool>(this + Offsets.ObservedPlayerView.IsAI);
             IsHuman = !isAI;
             if (IsScav)
             {
@@ -121,7 +122,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                         Name = role.Name;
                         Type = role.Type;
                     }
-                    else // Check voice lines!
+                    else
                     {
                         var voicePtr = Memory.ReadPtr(this + Offsets.ObservedPlayerView.Voice);
                         string voice = Memory.ReadUnityString(voicePtr);
@@ -129,40 +130,162 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                         Name = role.Name;
                         Type = role.Type;
                     }
+
+                    switch (Name)
+                    {
+                        case "Priest":
+                            var newGear = new GearManager(this);
+                            if (newGear.Equipment.TryGetValue("FaceCover", out var face))
+                            {
+                                if (face.Short.ToLower() == "zryachiy")
+                                    Name = "Zryachiy";
+                            }
+                            break;
+                        case "Usec":
+                        case "Bear":
+                            if (Memory.MapID.ToLower() == "lighthouse")
+                            {
+                                Name = "Rouge";
+                                Type = PlayerType.AIRaider;
+                            }
+                            else if (Memory.MapID.ToLower() == "rezervbase")
+                            {
+                                Name = "Raider";
+                                Type = PlayerType.AIRaider;
+                            }
+                            break;
+                    }
+
+                    if (Memory.MapID.ToLower() == "laboratory")
+                    {
+                        Name = "Raider";
+                        Type = PlayerType.AIRaider;
+                    }
+
+                    if (GuardManager.TryIdentifyGuard(
+                        new GearManager(this),
+                        new HandsManager(this),
+                        Memory.MapID,
+                        Type))
+                    {
+                        Name = "Guard";
+                        Type = PlayerType.AIRaider;
+                    }
                 }
                 else
                 {
                     int pscavNumber = Interlocked.Increment(ref _playerScavNumber);
                     Name = $"PScav{pscavNumber}";
-                    Type = GroupID != -1 && GroupID == localPlayer.GroupID ?
-                        PlayerType.Teammate : PlayerType.PScav;
+                    Type = GroupID != -1 && GroupID == localPlayer.GroupID ? PlayerType.Teammate : PlayerType.PScav;
                 }
             }
             else if (IsPmc)
             {
                 Name = "PMC";
-                Type = GroupID != -1 && GroupID == localPlayer.GroupID ?
-                    PlayerType.Teammate : PlayerType.PMC;
+                Type = GroupID != -1 && GroupID == localPlayer.GroupID ? PlayerType.Teammate : (PlayerSide == EPlayerSide.Usec) ? PlayerType.USEC : PlayerType.BEAR;
             }
             else
                 throw new NotImplementedException(nameof(PlayerSide));
+
             if (IsHuman)
             {
+                var handController = Memory.ReadPtr(HandsControllerAddr);
+                var dickController = Memory.ReadPtr(handController + Offsets.ObservedHandsController.BundleAnimationBones);
+                this.PWA =  Memory.ReadPtr(dickController + Offsets.BundleAnimationBonesController.ProceduralWeaponAnimationObs);
                 Profile = new PlayerProfile(this);
                 if (string.IsNullOrEmpty(AccountID) || !ulong.TryParse(AccountID, out _))
                     throw new ArgumentOutOfRangeException(nameof(AccountID));
             }
             else
                 AccountID = "AI";
-            if (IsHumanHostile) /// Special Players Check on Hostiles Only
+
+            if (IsHumanHostile)
             {
-                if (PlayerWatchlist.Entries.TryGetValue(AccountID, out var watchlistEntry)) // player is on watchlist
+                if (PlayerWatchlist.Entries.TryGetValue(AccountID, out var watchlistEntry))
                 {
-                    Type = PlayerType.SpecialPlayer; // Flag watchlist player
-                    UpdateAlerts($"[Watchlist] {watchlistEntry.Reason} @ {watchlistEntry.Timestamp}");
+                    Type = PlayerType.SpecialPlayer;
+                    UpdateAlerts(watchlistEntry.Reason);
+
+                    if (watchlistEntry.StreamingPlatform != StreamingPlatform.None && !string.IsNullOrEmpty(watchlistEntry.Username))
+                    {
+                        var streamingUrl = StreamingUtils.GetStreamingURL(watchlistEntry.StreamingPlatform, watchlistEntry.Username);
+                        StreamingURL = streamingUrl;
+
+                        CheckIfStreaming();
+                    }
+                    else
+                    {
+                        StreamingURL = null;
+                        IsStreaming = false;
+                    }
                 }
             }
-            PlayerHistory.AddOrUpdate(this); /// Log To Player History
+
+            PlayerHistory.AddOrUpdate(this);
+        }
+
+        public void CheckIfStreaming()
+        {
+            if (string.IsNullOrEmpty(StreamingURL))
+            {
+                IsStreaming = false;
+
+                if (Type == PlayerType.Streamer)
+                {
+                    UpdatePlayerType(PlayerType.SpecialPlayer);
+
+                    if (PlayerWatchlist.Entries.TryGetValue(AccountID, out var entry))
+                    {
+                        ClearAlerts();
+                        UpdateAlerts(entry.Reason);
+                    }
+                }
+                return;
+            }
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    if (!PlayerWatchlist.Entries.TryGetValue(AccountID, out var watchlistEntry))
+                        return;
+
+                    var wasStreaming = IsStreaming;
+                    string alertReason = watchlistEntry.Reason;
+
+                    if (watchlistEntry.StreamingPlatform != StreamingPlatform.None &&
+                        !string.IsNullOrEmpty(watchlistEntry.Username))
+                    {
+                        IsStreaming = await StreamingUtils.IsLive(watchlistEntry.StreamingPlatform, watchlistEntry.Username);
+                    }
+                    else
+                    {
+                        IsStreaming = false;
+                    }
+
+                    if (IsStreaming != wasStreaming)
+                    {
+                        if (IsStreaming)
+                        {
+                            UpdatePlayerType(PlayerType.Streamer);
+                            ClearAlerts();
+                            UpdateAlerts(alertReason);
+                        }
+                        else if (Type == PlayerType.Streamer)
+                        {
+                            UpdatePlayerType(PlayerType.SpecialPlayer);
+                            ClearAlerts();
+                            UpdateAlerts(alertReason);
+
+                            LoneLogging.WriteLine($"[Streaming] {Name} ({AccountID}) is no longer streaming");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LoneLogging.WriteLine($"[Streaming] Error checking if {Name} [{AccountID}] is live: {ex.Message}");
+                }
+            });
         }
 
         /// <summary>
@@ -205,6 +328,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         {
             if (isActiveParam is not bool isActive)
                 isActive = registered.Contains(this);
+
             if (isActive)
             {
                 if (IsHuman)
@@ -212,7 +336,9 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                     UpdateMemberCategory();
                     UpdatePlayerName();
                 }
+
                 UpdateHealthStatus();
+                UpdateAimingStatus();
             }
             base.OnRegRefresh(index, registered, isActive);
         }
@@ -221,11 +347,11 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         {
             try
             {
-                string nickname = Profile?.Nickname;
+                var nickname = Profile?.Nickname;
                 if (nickname is not null && this.Name != nickname)
                 {
                     this.Name = nickname;
-                    //_ = RunTwitchLookupAsync(nickname);
+                    PlayerHistory.AddOrUpdate(this);
                 }
             }
             catch (Exception ex)
@@ -260,7 +386,9 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                             alert = "Emissary Account";
                             Type = PlayerType.SpecialPlayer;
                         }
+
                         this.UpdateAlerts(alert);
+
                         _mcSet = true;
                     }
                 }
@@ -296,11 +424,27 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         }
 
         /// <summary>
+        /// Get Player's Updated Aiming Status
+        /// Only works in Online Mode.
+        /// </summary>
+        private void UpdateAimingStatus()
+        {
+            try
+            {
+                var ptr = Memory.ReadPtr(HandsControllerAddr);
+                IsAiming = Memory.ReadValue<bool>(Memory.ReadPtrChain(ptr, new uint[] { Offsets.ObservedHandsController.BundleAnimationBones, Offsets.BundleAnimationBonesController.ProceduralWeaponAnimationObs }) + Offsets.ProceduralWeaponAnimationObs._isAimingObs);
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"ERROR updating Health Status for '{Name}': {ex}");
+            }
+        }
+
+        /// <summary>
         /// Get the Transform Internal Chain for this Player.
         /// </summary>
         /// <param name="bone">Bone to lookup.</param>
         /// <returns>Array of offsets for transform internal chain.</returns>
-        public override uint[] GetTransformInternalChain(Bones bone) =>
-            Offsets.ObservedPlayerView.GetTransformChain(bone);
+        public override uint[] GetTransformInternalChain(Bones bone) => Offsets.ObservedPlayerView.GetTransformChain(bone);
     }
 }

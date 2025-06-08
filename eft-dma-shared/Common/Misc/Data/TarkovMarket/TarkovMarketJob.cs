@@ -38,11 +38,16 @@ namespace eft_dma_shared.Common.Misc.Data.TarkovMarket
                     ID = item.Id,
                     ShortName = item.ShortName,
                     Name = item.Name,
-                    Categories = item.Categories?.Select(x => x.Name)?.ToList() ?? new(), // Flatten categories
+                    Categories = item.Categories?.Select(x => x.Name)?.ToList() ?? new(),
                     TraderPrice = item.HighestVendorPrice,
                     FleaPrice = item.OptimalFleaPrice,
-                    Slots = slots
+                    Slots = item.Width * item.Height,
+                    IconLink = item.IconLink,
+                    IconLinkFallback = item.IconLinkFallback,
+                    ImageLink = item.ImageLink,
+                    Caliber = item.Properties?.Caliber  // <-- fix here
                 });
+                
             }
             foreach (var questItem in data.Data.QuestItems)
             {
@@ -95,15 +100,29 @@ namespace eft_dma_shared.Common.Misc.Data.TarkovMarket
 
             [JsonPropertyName("price")]
             public long TraderPrice { get; set; }
+
             [JsonPropertyName("fleaPrice")]
             public long FleaPrice { get; set; }
+
             [JsonPropertyName("slots")]
             public int Slots { get; set; }
 
             [JsonPropertyName("categories")]
             public List<string> Categories { get; set; }
-        }
-        #endregion
 
+            [JsonPropertyName("iconLink")]
+            public string IconLink { get; set; }
+
+            [JsonPropertyName("iconLinkFallback")]
+            public string IconLinkFallback { get; set; }
+
+            [JsonPropertyName("imageLink")]
+            public string ImageLink { get; set; }
+
+            [JsonPropertyName("caliber")]
+            public string Caliber { get; set; }
+        }
+
+        #endregion
     }
 }

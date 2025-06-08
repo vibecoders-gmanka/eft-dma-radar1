@@ -21,6 +21,6 @@ namespace eft_dma_shared.Common.DMA.ScatterAPI
         /// Parse the memory buffer and set the result value.
         /// </summary>
         /// <param name="hScatter">Scatter read handle.</param>
-        void SetResult(VmmFrost.LeechCore.SCATTER_HANDLE hScatter);
+        void SetResult(Vmmsharp.LeechCore.SCATTER_HANDLE hScatter);
     }
 }

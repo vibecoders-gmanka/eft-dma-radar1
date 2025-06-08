@@ -3,6 +3,7 @@ using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.LowLevel.Types;
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
 {
@@ -40,7 +41,6 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
 
             return NativeHook.Call(behaviour_SetEnabled, behavior, Unsafe.As<bool, ulong>(ref state)) ?? 0;
         }
-
         // Game Object
 
         public static ulong FindGameObject(ulong name)
@@ -51,7 +51,23 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
 
             return NativeHook.Call(GameObject_CUSTOM_Find, name) ?? 0;
         }
+        public static readonly object Lock = new();        
+        public static ulong FindGameObjectS(string name)
+        {
+            lock (Lock)
+            {
+                var nameMonoStr = RemoteBytes.MonoString.Get(name);
+                using RemoteBytes nameMonoStrMem = new((int)nameMonoStr.GetSizeU());
+                nameMonoStrMem.WriteString(nameMonoStr);
 
+                ulong result = FindGameObject((ulong)nameMonoStrMem);
+
+                if (result == 0x0)
+                    LoneLogging.WriteLine($"Game object \"{name}\" could not be found!");
+                
+                return result;
+            }
+        }
         public static ulong GameObjectSetActive(ulong gameObject, bool state)
         {
             if (!gameObject.IsValidVirtualAddress())
@@ -101,7 +117,27 @@ namespace eft_dma_shared.Common.Unity.LowLevel.Hooks
 
             return NativeHook.Call(mono_marshal_free, pv) ?? 0;
         }
+        public static ulong AllocZero(uint size)
+        {
+            var ptr = VirtualAlloc(IntPtr.Zero, size, AllocationType.Commit | AllocationType.Reserve, MemoryProtection.ReadWrite);
+            if (ptr == IntPtr.Zero)
+                throw new Exception("AllocZero failed");
+            return (ulong)ptr.ToInt64();
+        }
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr VirtualAlloc(IntPtr lpAddress, uint dwSize, AllocationType flAllocationType, MemoryProtection flProtect);
+
+        [Flags]
+        private enum AllocationType : uint
+        {
+            Commit = 0x1000,
+            Reserve = 0x2000,
+        }
+        private enum MemoryProtection : uint
+        {
+            ReadWrite = 0x04,
+        }
         public static ulong AllocRWX()
         {
             const uint rwxSize = 64000; // This is the safest size for an RWX region based on research

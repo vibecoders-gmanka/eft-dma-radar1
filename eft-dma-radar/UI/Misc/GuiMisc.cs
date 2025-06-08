@@ -1,7 +1,6 @@
 ﻿using eft_dma_radar.Tarkov.EFTPlayer;
 using eft_dma_radar.Tarkov.Loot;
 using eft_dma_radar.UI.ESP;
-using eft_dma_radar.UI.Radar;
 using eft_dma_shared.Common.Maps;
 using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Data;
@@ -21,9 +20,10 @@ namespace eft_dma_radar.UI.Misc
     /// <summary>
     /// Represents a PMC in the PMC History log.
     /// </summary>
-    public sealed class PlayerHistoryEntry
+    public sealed class PlayerHistoryEntry : INotifyPropertyChanged
     {
         private readonly Player _player;
+        private DateTime _lastSeen;
 
         /// <summary>
         /// The Player Object that this entry is bound to.
@@ -31,7 +31,9 @@ namespace eft_dma_radar.UI.Misc
         public Player Player => _player;
 
         public string Name => _player.Name;
+
         public string ID => _player.AccountID;
+
         public string Acct
         {
             get
@@ -41,8 +43,9 @@ namespace eft_dma_radar.UI.Misc
                 return "--";
             }
         }
-        public string Type =>
-            $"{_player.Type.GetDescription()} {_player.PlayerSide.GetDescription()}";
+
+        public string Type => $"{_player.Type.GetDescription()}";
+
         public string KD
         {
             get
@@ -52,6 +55,7 @@ namespace eft_dma_radar.UI.Misc
                 return "--";
             }
         }
+
         public string Hours
         {
             get
@@ -61,26 +65,45 @@ namespace eft_dma_radar.UI.Misc
                 return "--";
             }
         }
-        public string Raids
+
+        /// <summary>
+        /// When this player was last seen
+        /// </summary>
+        public DateTime LastSeen
+        {
+            get => _lastSeen;
+            private set
+            {
+                if (_lastSeen != value)
+                {
+                    _lastSeen = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LastSeenFormatted));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Formatted LastSeen for display in UI
+        /// </summary>
+        public string LastSeenFormatted
         {
             get
             {
-                if (_player is ObservedPlayer observed && observed.Profile?.RaidCount is int raidCount)
-                    return raidCount.ToString();
-                return "--";
+                var timeSpan = DateTime.Now - _lastSeen;
+
+                if (timeSpan.TotalMinutes < 1)
+                    return "Just now";
+                else if (timeSpan.TotalMinutes < 60)
+                    return $"{(int)timeSpan.TotalMinutes}m ago";
+                else if (timeSpan.TotalHours < 24)
+                    return $"{(int)timeSpan.TotalHours}h ago";
+                else if (timeSpan.TotalDays < 7)
+                    return $"{(int)timeSpan.TotalDays}d ago";
+                else
+                    return _lastSeen.ToString("MM/dd/yyyy");
             }
         }
-        public string SR
-        {
-            get
-            {
-                if (_player is ObservedPlayer observed && observed.Profile?.SurvivedRate is float sr)
-                    return sr.ToString("n1");
-                return "--";
-            }
-        }
-        public string Group => _player.GroupID != -1 ? _player.GroupID.ToString() : "--";
-        public string Alerts => _player.Alerts;
 
         /// <summary>
         /// Constructor.
@@ -90,30 +113,126 @@ namespace eft_dma_radar.UI.Misc
         {
             ArgumentNullException.ThrowIfNull(player, nameof(player));
             _player = player;
+            _lastSeen = DateTime.Now;
+        }
+
+        /// <summary>
+        /// Updates the LastSeen timestamp to current time
+        /// </summary>
+        public void UpdateLastSeen()
+        {
+            LastSeen = DateTime.Now;
+        }
+
+        /// <summary>
+        /// Updates the LastSeen timestamp to a specific time
+        /// </summary>
+        /// <param name="timestamp">The timestamp when the player was seen</param>
+        public void UpdateLastSeen(DateTime timestamp)
+        {
+            LastSeen = timestamp;
+        }
+
+        /// <summary>
+        /// Refreshes the LastSeenFormatted property to trigger UI update
+        /// </summary>
+        public void RefreshLastSeenFormatted()
+        {
+            OnPropertyChanged(nameof(LastSeenFormatted));
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 
     /// <summary>
     /// JSON Wrapper for Player Watchlist.
     /// </summary>
-    public sealed class PlayerWatchlistEntry
+    public sealed class PlayerWatchlistEntry : INotifyPropertyChanged
     {
+        private string _accountID = string.Empty;
+        private string _reason = string.Empty;
+        private StreamingPlatform _streamingPlatform = StreamingPlatform.None;
+        private string _username = string.Empty;
+
         /// <summary>
         /// Player's Account ID as obtained from Player History.
         /// </summary>
         [JsonPropertyName("acctID")]
-        public string AcctID { get; set; } = string.Empty;
+        public string AccountID
+        {
+            get => _accountID;
+            set
+            {
+                if (_accountID != value)
+                {
+                    _accountID = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         /// <summary>
         /// Reason for adding player to Watchlist (ex: Cheater, streamer name,etc.)
         /// </summary>
         [JsonPropertyName("reason")]
-        public string Reason { get; set; } = string.Empty;
+        public string Reason
+        {
+            get => _reason;
+            set
+            {
+                if (_reason != value)
+                {
+                    _reason = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         /// <summary>
-        /// Timestamp when the entry was originally added.
+        /// The streaming platform (Twitch, YouTube, etc.)
         /// </summary>
-        [JsonInclude]
-        [JsonPropertyName("timestamp")]
-        public DateTime Timestamp { get; init; } = DateTime.Now;
+        [JsonPropertyName("platform")]
+        public StreamingPlatform StreamingPlatform
+        {
+            get => _streamingPlatform;
+            set
+            {
+                if (_streamingPlatform != value)
+                {
+                    _streamingPlatform = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// The platform username
+        /// </summary>
+        [JsonPropertyName("username")]
+        public string Username
+        {
+            get => _username;
+            set
+            {
+                if (_username != value)
+                {
+                    _username = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     public sealed class ScreenEntry
@@ -133,20 +252,6 @@ namespace eft_dma_radar.UI.Misc
         public override string ToString() => $"Screen {_screenNumber}";
     }
 
-    public enum HotkeyMode : int
-    {
-        [Description("Hold")]
-        /// <summary>
-        /// Continuous Hold the hotkey.
-        /// </summary>
-        Hold = 1,
-        [Description("Toggle")]
-        /// <summary>
-        /// Toggle hotkey on/off.
-        /// </summary>
-        Toggle = 2
-    }
-
     public sealed class BonesListItem
     {
         public string Name { get; }
@@ -159,23 +264,26 @@ namespace eft_dma_radar.UI.Misc
         public override string ToString() => Name;
     }
 
-    public sealed class HotkeyModeListItem
+    public sealed class QuestListItem : INotifyPropertyChanged
     {
         public string Name { get; }
-        public HotkeyMode Mode { get; }
-        public HotkeyModeListItem(HotkeyMode mode)
-        {
-            Name = mode.GetDescription();
-            Mode = mode;
-        }
-        public override string ToString() => Name;
-    }
-
-    public sealed class QuestListItem
-    {
         public string Id { get; }
-        public string Name { get; }
-        public QuestListItem(string id)
+
+        private bool _isSelected;
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected != value)
+                {
+                    _isSelected = value;
+                    OnPropertyChanged(nameof(IsSelected));
+                }
+            }
+        }
+
+        public QuestListItem(string id, bool isSelected)
         {
             Id = id;
             if (EftDataManager.TaskData.TryGetValue(id, out var task))
@@ -183,11 +291,93 @@ namespace eft_dma_radar.UI.Misc
                 Name = task.Name ?? id;
             }
             else
-            {
                 Name = id;
+
+            IsSelected = isSelected;
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        private void OnPropertyChanged(string prop) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
+    }
+
+    public sealed class HotkeyDisplayModel
+    {
+        public string Action { get; set; }
+        public string Key { get; set; }
+        public string Type { get; set; }
+
+        public string Display => $"{Action} ({Key})";
+    }
+
+    /// <summary>
+    /// Wrapper class for displaying container info in the UI.
+    /// </summary>
+    public sealed class ContainerListItem : INotifyPropertyChanged
+    {
+        public string Name { get; }
+        public string Id { get; }
+        public List<string> GroupedIds { get; set; } = new();
+
+        private bool _isSelected;
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected != value)
+                {
+                    _isSelected = value;
+                    OnPropertyChanged(nameof(IsSelected));
+                }
             }
         }
-        public override string ToString() => Name;
+
+        public ContainerListItem(TarkovMarketItem container)
+        {
+            Name = container.ShortName;
+            Id = container.BsgId;
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        private void OnPropertyChanged(string prop) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
+    }
+
+    public static class SkiaResourceTracker
+    {
+        private static DateTime _lastMainWindowPurge = DateTime.UtcNow;
+        private static DateTime _lastESPPurge = DateTime.UtcNow;
+        private static int _mainWindowFrameCount = 0;
+        private static int _espFrameCount = 0;
+
+        public static void TrackMainWindowFrame()
+        {
+            _mainWindowFrameCount++;
+
+            var now = DateTime.UtcNow;
+            var timeSincePurge = (now - _lastMainWindowPurge).TotalSeconds;
+
+            if (timeSincePurge >= 5.0 && _mainWindowFrameCount % 300 == 0)
+            {
+                _lastMainWindowPurge = now;
+                MainWindow.Window?.PurgeSKResources();
+            }
+        }
+
+        public static void TrackESPFrame()
+        {
+            _espFrameCount++;
+
+            var now = DateTime.UtcNow;
+            var timeSincePurge = (now - _lastESPPurge).TotalSeconds;
+
+            if (timeSincePurge >= 10.0 && _espFrameCount % 600 == 0)
+            {
+                _lastESPPurge = now;
+                ESPForm.Window?.PurgeSKResources();
+            }
+        }
     }
 
     public enum LootPriceMode : int
@@ -200,6 +390,53 @@ namespace eft_dma_radar.UI.Misc
         /// Highest Trader Price.
         /// </summary>
         Trader = 1
+    }
+
+    public enum ApplicationMode
+    {
+        Normal,
+        SafeMode
+    }
+
+    /// <summary>
+    /// Defines how entity types are rendered on the map
+    /// </summary>
+    public enum EntityRenderMode
+    {
+        [Description("None")]
+        None,
+        [Description("Dot")]
+        Dot,
+        [Description("Cross")]
+        Cross,
+        [Description("Plus")]
+        Plus,
+        [Description("Square")]
+        Square,
+        [Description("Diamond")]
+        Diamond
+    }
+
+    /// <summary>
+    /// Enum representing different streaming platforms
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum StreamingPlatform
+    {
+        /// <summary>
+        /// No streaming platform
+        /// </summary>
+        None,
+
+        /// <summary>
+        /// Twitch.tv streaming platform
+        /// </summary>
+        Twitch,
+
+        /// <summary>
+        /// YouTube streaming platform
+        /// </summary>
+        YouTube
     }
 
     /// <summary>
@@ -260,7 +497,7 @@ namespace eft_dma_radar.UI.Misc
             float x = point.X + offsetX;
             float y = point.Y + offsetY;
 
-            size *= MainForm.UIScale;
+            size *= MainWindow.UIScale;
             var path = new SKPath();
             path.MoveTo(x, y);
             path.LineTo(x - size, y + size);
@@ -278,7 +515,7 @@ namespace eft_dma_radar.UI.Misc
             float x = point.X + offsetX;
             float y = point.Y + offsetY;
 
-            size *= MainForm.UIScale;
+            size *= MainWindow.UIScale;
             var path = new SKPath();
             path.MoveTo(x, y);
             path.LineTo(x - size, y - size);
@@ -294,7 +531,7 @@ namespace eft_dma_radar.UI.Misc
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DrawMineMarker(this SKPoint zoomedMapPos, SKCanvas canvas)
         {
-            float length = 3.5f * MainForm.UIScale;
+            float length = 3.5f * MainWindow.UIScale;
             canvas.DrawLine(new SKPoint(zoomedMapPos.X - length, zoomedMapPos.Y + length), new SKPoint(zoomedMapPos.X + length, zoomedMapPos.Y - length), SKPaints.PaintExplosives);
             canvas.DrawLine(new SKPoint(zoomedMapPos.X - length, zoomedMapPos.Y - length), new SKPoint(zoomedMapPos.X + length, zoomedMapPos.Y + length), SKPaints.PaintExplosives);
         }
@@ -313,41 +550,48 @@ namespace eft_dma_radar.UI.Misc
             }
             var backer = new SKRect()
             {
-                Bottom = zoomedMapPos.Y + ((lines.Count() * 12f) - 2) * MainForm.UIScale,
-                Left = zoomedMapPos.X + (9 * MainForm.UIScale),
-                Top = zoomedMapPos.Y - (9 * MainForm.UIScale),
-                Right = zoomedMapPos.X + (9 * MainForm.UIScale) + maxLength + (6 * MainForm.UIScale)
+                Bottom = zoomedMapPos.Y + ((lines.Count() * 12f) - 2) * MainWindow.UIScale,
+                Left = zoomedMapPos.X + (9 * MainWindow.UIScale),
+                Top = zoomedMapPos.Y - (9 * MainWindow.UIScale),
+                Right = zoomedMapPos.X + (9 * MainWindow.UIScale) + maxLength + (6 * MainWindow.UIScale)
             };
             canvas.DrawRect(backer, SKPaints.PaintTransparentBacker); // Draw tooltip backer
-            zoomedMapPos.Offset(11 * MainForm.UIScale, 3 * MainForm.UIScale);
+            zoomedMapPos.Offset(11 * MainWindow.UIScale, 3 * MainWindow.UIScale);
             foreach (var line in lines) // Draw tooltip text
             {
                 if (string.IsNullOrEmpty(line?.Trim()))
                     continue;
                 canvas.DrawText(line, zoomedMapPos, SKPaints.TextMouseover); // draw line text
-                zoomedMapPos.Offset(0, 12f * MainForm.UIScale);
+                zoomedMapPos.Offset(0, 12f * MainWindow.UIScale);
             }
         }
 
         /// <summary>
-        /// Draw an ESP Text Label on an Entity.
+        /// Draw ESP text with optional distance display for entities or static objects like mines
         /// </summary>
         public static void DrawESPText(this SKPoint screenPos, SKCanvas canvas, IESPEntity entity, LocalPlayer localPlayer, bool printDist, SKPaint paint, params string[] lines)
         {
             if (printDist && lines.Length > 0)
             {
-                var dist = Vector3.Distance(entity.Position, localPlayer.Position);
                 string distStr;
-                if (entity is LootItem && dist < 10f)
+
+                if (entity != null)
                 {
-                    distStr = $" {dist.ToString("n1")}m";
+                    var dist = Vector3.Distance(entity.Position, localPlayer.Position);
+
+                    if (entity is LootItem && dist < 10f)
+                    {
+                        distStr = $" {dist.ToString("n1")}m";
+                    }
+                    else
+                    {
+                        distStr = $" {(int)dist}m";
+                    }
+
+                    lines[0] += distStr;
                 }
-                else
-                {
-                    distStr = $" {(int)dist}m";
-                }
-                lines[0] += distStr;
             }
+
             foreach (var x in lines)
             {
                 if (string.IsNullOrEmpty(x?.Trim()))
@@ -356,6 +600,35 @@ namespace eft_dma_radar.UI.Misc
                 screenPos.Y += paint.TextSize;
             }
         }
+
+        /// <summary>
+        /// Overload for static objects like mines where we calculate the distance with a provided value
+        /// </summary>
+        public static void DrawESPText(this SKPoint screenPos, SKCanvas canvas, IESPEntity entity, LocalPlayer localPlayer, bool printDist, SKPaint paint, string label, float distance)
+        {
+            if (string.IsNullOrEmpty(label))
+                return;
+
+            string textWithDist = label;
+
+            if (printDist)
+            {
+                string distStr;
+                if (distance < 10f)
+                {
+                    distStr = $" {distance.ToString("n1")}m";
+                }
+                else
+                {
+                    distStr = $" {(int)distance}m";
+                }
+
+                textWithDist += distStr;
+            }
+
+            canvas.DrawText(textWithDist, screenPos, paint);
+        }
+
         #endregion
     }
 }

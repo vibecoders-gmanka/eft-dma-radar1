@@ -1,9 +1,13 @@
 ﻿using eft_dma_shared.Common.Misc;
 using eft_dma_radar.Tarkov.EFTPlayer;
 using eft_dma_radar.Tarkov.Features;
-using eft_dma_radar.UI.Misc;
+
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Features;
+using eft_dma_radar.UI.Misc;
+using static eft_dma_shared.Common.Misc.InputManager;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using KeyEventArgs = eft_dma_shared.Common.Misc.InputManager.KeyEventArgs;
 
 namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 {
@@ -11,6 +15,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
     {
         public static EWideLeanDirection Direction = EWideLeanDirection.Off;
         private bool _set = false;
+        private Vector3 OFF = Vector3.Zero;
 
         public override bool Enabled
         {
@@ -19,7 +24,6 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
         }
 
         protected override TimeSpan Delay => TimeSpan.FromMilliseconds(100);
-
 
         /// <summary>
         /// Wide Lean Config.
@@ -35,7 +39,8 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
                     var dir = Direction;
                     if (Enabled && dir is not EWideLeanDirection.Off && !_set)
                     {
-                        float amt = Config.Amount * .01f * 0.2f;
+                        var amt = Config.Amount * 0.2f;
+
                         switch (dir)
                         {
                             case EWideLeanDirection.Left:
@@ -61,8 +66,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
                     }
                     else if (_set && dir is EWideLeanDirection.Off)
                     {
-                        var off = Vector3.Zero;
-                        writes.AddValueEntry(localPlayer.PWA + Offsets.ProceduralWeaponAnimation.PositionZeroSum, ref off);
+                        writes.AddValueEntry(localPlayer.PWA + Offsets.ProceduralWeaponAnimation.PositionZeroSum, ref OFF);
                         writes.Callbacks += () =>
                         {
                             _set = false;
@@ -80,8 +84,8 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 
         public override void OnRaidStart()
         {
-            _set = default;
-        }
+            _set = default;    
+        }         
 
         public enum EWideLeanDirection
         {

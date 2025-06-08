@@ -1,11 +1,11 @@
 ﻿namespace eft_dma_radar.UI.ESP
 {
-    partial class EspForm
+    partial class ESPForm
     {
         /// <summary>
         /// Required designer variable.
         /// </summary>
-        private IContainer components = null;
+        private System.ComponentModel.IContainer components = null;
 
         /// <summary>
         /// Clean up any resources being used.
@@ -28,38 +28,18 @@
         /// </summary>
         private void InitializeComponent()
         {
-            ComponentResourceManager resources = new ComponentResourceManager(typeof(EspForm));
-            skglControl_ESP = new SKGLControl();
             SuspendLayout();
             // 
-            // skglControl_ESP
-            // 
-            skglControl_ESP.BackColor = Color.Black;
-            skglControl_ESP.Dock = DockStyle.Fill;
-            skglControl_ESP.Location = new Point(0, 0);
-            skglControl_ESP.Margin = new Padding(4, 3, 4, 3);
-            skglControl_ESP.Name = "skglControl_ESP";
-            skglControl_ESP.Size = new Size(624, 441);
-            skglControl_ESP.TabIndex = 0;
-            skglControl_ESP.VSync = false;
-            // 
-            // EspForm
+            // ESPForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(624, 441);
-            Controls.Add(skglControl_ESP);
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            Icon = (Icon)resources.GetObject("$this.Icon");
-            MinimizeBox = false;
-            Name = "EspForm";
-            Text = "ESP";
-            TopMost = false;
+            ClientSize = new Size(800, 450);
+            Name = "ESPForm";
+            Text = "ESPForm";
             ResumeLayout(false);
         }
 
         #endregion
-
-        private SKGLControl skglControl_ESP;
     }
 }

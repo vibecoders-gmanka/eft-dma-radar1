@@ -1,38 +1,65 @@
 ﻿global using static eft_dma_radar.Tarkov.MemoryInterface;
-using eft_dma_radar.Tarkov.EFTPlayer;
-using eft_dma_radar.Tarkov.Loot;
 using eft_dma_radar.Tarkov.API;
-using eft_dma_radar.UI.Misc;
-using eft_dma_radar.UI.Radar;
-using VmmFrost;
+using eft_dma_radar.Tarkov.EFTPlayer;
 using eft_dma_radar.Tarkov.GameWorld;
-using eft_dma_radar.Tarkov.GameWorld.Explosives;
 using eft_dma_radar.Tarkov.GameWorld.Exits;
-using System.Runtime;
+using eft_dma_radar.Tarkov.GameWorld.Explosives;
+using eft_dma_radar.Tarkov.Loot;
+using eft_dma_radar.UI.Misc;
 using eft_dma_shared.Common.DMA;
-using eft_dma_shared.Common.Unity;
+using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Misc;
+using eft_dma_shared.Common.Unity;
+using System.Drawing;
+using System.Runtime;
+using Vmmsharp;
 
 namespace eft_dma_radar.Tarkov
 {
     internal static class MemoryInterface
     {
-        private static MemDMA _memory;
+        private static MemDMA _actualMemory;
+        private static SafeMemoryProxy _safeMemory;
+
         /// <summary>
-        /// DMA Memory Module.
+        /// Safe Memory Interface that works in both Normal and Safe mode
         /// </summary>
-        public static MemDMA Memory
+        public static SafeMemoryProxy Memory
         {
-            get => _memory;
-            private set => _memory ??= value;
+            get
+            {
+                // Safety net: if Memory is accessed before ModuleInit, create a safe proxy
+                if (_safeMemory == null)
+                {
+                    LoneLogging.WriteLine("[Warning] Memory accessed before ModuleInit - creating emergency safe proxy");
+                    _safeMemory = new SafeMemoryProxy(null);
+                }
+                return _safeMemory;
+            }
         }
+
+        /// <summary>
+        /// Check if DMA is available
+        /// </summary>
+        public static bool IsDMAAvailable => _actualMemory != null && Program.CurrentMode == ApplicationMode.Normal;
 
         /// <summary>
         /// Initialize the Memory Interface.
         /// </summary>
         public static void ModuleInit()
         {
-            Memory = new MemDMA();
+            if (Program.CurrentMode == ApplicationMode.Normal)
+            {
+                _actualMemory = new MemDMA();
+                _safeMemory = new SafeMemoryProxy(_actualMemory);
+                LoneLogging.WriteLine("DMA Memory Interface initialized - Normal Mode");
+            }
+            else
+            {
+                _actualMemory = null;
+                _safeMemory = new SafeMemoryProxy(null);
+                LoneLogging.WriteLine("Safe Memory Interface initialized - Safe Mode (DMA disabled)");
+            }
         }
     }
 
@@ -48,12 +75,14 @@ namespace eft_dma_radar.Tarkov
         /// <summary>
         /// App Configuration.
         /// </summary>
-        private static Config Config { get; } = Program.Config;
+        private static Config Config => Program.Config;
 
         /// <summary>
         /// Current Map ID.
         /// </summary>
         public string MapID => Game?.MapID;
+        public bool IsOffline => LocalGameWorld.IsOffline;
+        
         /// <summary>
         /// True if currently in a raid/match, otherwise False.
         /// </summary>
@@ -77,6 +106,7 @@ namespace eft_dma_radar.Tarkov
         public IReadOnlyCollection<Player> Players => Game?.Players;
         public IReadOnlyCollection<IExplosiveItem> Explosives => Game?.Explosives;
         public IReadOnlyCollection<IExitPoint> Exits => Game?.Exits;
+        
         public LocalPlayer LocalPlayer => Game?.LocalPlayer;
         public LootManager Loot => Game?.Loot;
         public QuestManager QuestManager => Game?.QuestManager;
@@ -88,6 +118,7 @@ namespace eft_dma_radar.Tarkov
             GameStopped += MemDMA_GameStopped;
             RaidStarted += MemDMA_RaidStarted;
             RaidStopped += MemDMA_RaidStopped;
+
             new Thread(MemoryPrimaryWorker)
             {
                 IsBackground = true
@@ -100,13 +131,18 @@ namespace eft_dma_radar.Tarkov
         private void MemoryPrimaryWorker()
         {
             LoneLogging.WriteLine("Memory thread starting...");
-            while (MainForm.Window is null)
-                Thread.Sleep(1);
+
+            while (!MainWindow.Initialized)
+            {
+                LoneLogging.WriteLine("[Waiting] Main window not ready...");
+                Thread.Sleep(100);
+            }
+
             while (true)
             {
                 try
                 {
-                    while (true) // Main Loop
+                    while (true)
                     {
                         RunStartupLoop();
                         OnGameStarted();
@@ -117,11 +153,14 @@ namespace eft_dma_radar.Tarkov
                 catch (Exception ex)
                 {
                     LoneLogging.WriteLine($"FATAL ERROR on Memory Thread: {ex}");
+                    if (MainWindow.Window != null)
+                        NotificationsShared.Warning($"FATAL ERROR on Memory Thread");
                     OnGameStopped();
                     Thread.Sleep(1000);
                 }
             }
         }
+
 
         #endregion
 
@@ -144,10 +183,12 @@ namespace eft_dma_radar.Tarkov
                     LoadModules();
                     _starting = true;
                     MonoLib.InitializeEFT();
-                    InputManager.Initialize(UnityBase);
+                    InputManager.Initialize();
                     CameraManager.Initialize();
                     _ready = true;
                     LoneLogging.WriteLine("Game Startup [OK]");
+                    if (MainWindow.Window != null)
+                        NotificationsShared.Info("Game Startup [OK]");
                     break;
                 }
                 catch (Exception ex)
@@ -178,6 +219,8 @@ namespace eft_dma_radar.Tarkov
                             if (_restartRadar)
                             {
                                 LoneLogging.WriteLine("Restarting Radar per User Request.");
+                                if (MainWindow.Window != null)
+                                    NotificationsShared.Info("Restarting Radar per User Request.");
                                 _restartRadar = false;
                                 break;
                             }
@@ -190,6 +233,8 @@ namespace eft_dma_radar.Tarkov
                 catch (Exception ex)
                 {
                     LoneLogging.WriteLine($"CRITICAL ERROR in Game Loop: {ex}");
+                    if (MainWindow.Window != null)
+                        NotificationsShared.Warning($"CRITICAL ERROR in Game Loop");
                     break;
                 }
                 finally
@@ -199,6 +244,8 @@ namespace eft_dma_radar.Tarkov
                 }
             }
             LoneLogging.WriteLine("Game is no longer running!");
+            if (MainWindow.Window != null)
+                NotificationsShared.Warning("Game is no longer running!");
         }
 
         /// <summary>
@@ -223,10 +270,8 @@ namespace eft_dma_radar.Tarkov
             _ready = default;
             UnityBase = default;
             MonoBase = default;
-            _pid = default;
             _syncProcessRunning.Reset();
             MonoLib.Reset();
-            InputManager.Reset();
         }
 
 
@@ -248,9 +293,11 @@ namespace eft_dma_radar.Tarkov
         /// </summary>
         private void LoadProcess()
         {
-            if (_hVMM == null || !_hVMM.PidGetFromName(_processName, out uint pid))
+            var tmpProcess = _hVMM.Process(_processName);
+            if (tmpProcess == null)
                 throw new Exception($"Unable to find '{_processName}'");
-            _pid = pid;
+
+            Process = tmpProcess;
         }
 
         /// <summary>
@@ -258,10 +305,11 @@ namespace eft_dma_radar.Tarkov
         /// </summary>
         private void LoadModules()
         {
-            var unityBase = _hVMM.ProcessGetModuleBase(_pid, "UnityPlayer.dll");
+            var unityBase = Process.GetModuleBase("UnityPlayer.dll");
             ArgumentOutOfRangeException.ThrowIfZero(unityBase, nameof(unityBase));
-            var monoBase = _hVMM.ProcessGetModuleBase(_pid, "mono-2.0-bdwgc.dll");
+            var monoBase = Process.GetModuleBase("mono-2.0-bdwgc.dll");
             ArgumentOutOfRangeException.ThrowIfZero(monoBase, nameof(monoBase));
+
             UnityBase = unityBase;
             MonoBase = monoBase;
         }
@@ -297,6 +345,35 @@ namespace eft_dma_radar.Tarkov
                 throw new Exception("Not safe to write!");
             WriteBuffer(addr, buffer);
         }
+        public bool TryReadValue<T>(ulong addr, out T value) where T : unmanaged
+        {
+            try
+            {
+                value = Memory.ReadValue<T>(addr);
+                return true;
+            }
+            catch
+            {
+                value = default;
+                return false;
+            }
+        }
+        public bool IsValid(ulong address)
+        {
+            try
+            {
+                if (address == 0) return false;
+
+                // Correct method from your MemDMA implementation
+                _ = Memory.ReadValue<byte>(address); 
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
 
         #endregion
 
@@ -312,9 +389,8 @@ namespace eft_dma_radar.Tarkov
             for (var i = 0; i < 5; i++)
                 try
                 {
-                    if (!_hVMM.PidGetFromName(_processName, out uint pid))
-                        throw new Exception();
-                    if (pid != _pid)
+                    var tempProcess = _hVMM.Process(_processName);
+                    if (tempProcess is null)
                         throw new Exception();
                     return;
                 }
@@ -378,5 +454,377 @@ namespace eft_dma_radar.Tarkov
             // Already validated in called funcs
         }
         #endregion
+    }
+
+    public class SafeMemoryProxy
+    {
+        private readonly MemDMA _actualMemory;
+
+        public SafeMemoryProxy(MemDMA actualMemory)
+        {
+            _actualMemory = actualMemory;
+        }
+
+        public QuestManager QuestManager => _actualMemory?.QuestManager;
+        public LootManager Loot => _actualMemory?.Loot;
+        public LocalPlayer LocalPlayer => _actualMemory?.LocalPlayer;
+        public IReadOnlyCollection<Player> Players => _actualMemory?.Players ?? new List<Player>();
+        public IReadOnlyCollection<IExplosiveItem> Explosives => _actualMemory?.Explosives ?? new List<IExplosiveItem>();
+        public IReadOnlyCollection<IExitPoint> Exits => _actualMemory?.Exits ?? new List<IExitPoint>();
+        public LocalGameWorld Game => _actualMemory?.Game;
+        public string MapID => _actualMemory?.MapID;
+        public bool IsOffline => _actualMemory?.IsOffline ?? false;
+        public bool InRaid => _actualMemory?.InRaid ?? false;
+        public bool RaidHasStarted => _actualMemory?.RaidHasStarted ?? false;
+        public bool Ready => _actualMemory?.Ready ?? false;
+        public bool Starting => _actualMemory?.Starting ?? false;
+
+        public ulong MonoBase => _actualMemory?.MonoBase ?? 0;
+        public ulong UnityBase => _actualMemory?.UnityBase ?? 0;
+        public VmmProcess Process => _actualMemory?.Process;
+        public Vmm VmmHandle => _actualMemory?.VmmHandle;
+
+        public bool RestartRadar
+        {
+            set
+            {
+                if (_actualMemory != null)
+                    _actualMemory.RestartRadar = value;
+            }
+        }
+
+        public bool TryReadValue<T>(ulong addr, out T value) where T : unmanaged
+        {
+            if (_actualMemory != null)
+                return _actualMemory.TryReadValue(addr, out value);
+
+            value = default;
+            return false;
+        }
+
+        public bool IsValid(ulong address)
+        {
+            return _actualMemory?.IsValid(address) ?? false;
+        }
+
+        public T ReadValue<T>(ulong addr, bool useCache = true) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadValue<{typeof(T).Name}> skipped at 0x{addr:X}");
+                return default(T);
+            }
+            return _actualMemory.ReadValue<T>(addr, useCache);
+        }
+
+        public void ReadValue<T>(ulong addr, out T result, bool useCache = true) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                result = default(T);
+                return;
+            }
+            _actualMemory.ReadValue(addr, out result, useCache);
+        }
+
+        public T ReadValueEnsure<T>(ulong addr) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadValueEnsure<{typeof(T).Name}> skipped at 0x{addr:X}");
+                return default(T);
+            }
+            return _actualMemory.ReadValueEnsure<T>(addr);
+        }
+
+        public void ReadValueEnsure<T>(ulong addr, out T result) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                result = default(T);
+                return;
+            }
+            _actualMemory.ReadValueEnsure(addr, out result);
+        }
+
+        public ulong ReadPtr(ulong addr, bool useCache = true)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadPtr skipped at 0x{addr:X}");
+                return 0;
+            }
+            return _actualMemory.ReadPtr(addr, useCache);
+        }
+
+        public ulong ReadPtrChain(ulong addr, uint[] offsets, bool useCache = true)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadPtrChain skipped at 0x{addr:X}");
+                return 0;
+            }
+            return _actualMemory.ReadPtrChain(addr, offsets, useCache);
+        }
+
+        public void ReadBuffer<T>(ulong addr, Span<T> buffer, bool useCache = true, bool allowPartialRead = false) where T : unmanaged
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadBuffer<{typeof(T).Name}> skipped at 0x{addr:X}");
+                buffer.Clear();
+                return;
+            }
+            _actualMemory.ReadBuffer(addr, buffer, useCache, allowPartialRead);
+        }
+
+        public void ReadBufferEnsure<T>(ulong addr, Span<T> buffer1) where T : unmanaged
+        {
+            if (_actualMemory == null)
+            {
+                buffer1.Clear();
+                return;
+            }
+            _actualMemory.ReadBufferEnsure(addr, buffer1);
+        }
+
+
+        /// <summary> Evo
+        /// Read memory into a buffer and validate the right bytes were received.
+        /// </summary>
+        public byte[] ReadBufferEnsureE(ulong addr, int size)
+        {
+            const int ValidationCount = 3;
+
+            try
+            {
+                byte[][] buffers = new byte[ValidationCount][];
+                for (int i = 0; i < ValidationCount; i++)
+                {
+                    buffers[i] = Process.MemRead(addr, (uint)size, Vmm.FLAG_NOCACHE);
+                    
+                    if (buffers[i].Length != size)
+                        throw new Exception("Incomplete memory read!");
+                }
+
+                // Check that all arrays have the same contents
+                for (int i = 1; i < ValidationCount; i++) // Start checking with second item in the array
+                    if (!buffers[i].SequenceEqual(buffers[0])) // Compare against the first item in the array
+                    {
+                        LoneLogging.WriteLine($"[WARN] ReadBufferEnsure() -> 0x{addr:X} did not pass validation!");
+                        return null;
+                    }
+
+                return buffers[0];
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"[DMA] ERROR reading buffer at 0x{addr:X}", ex);
+            }
+        }
+        public string ReadString(ulong addr, int length, bool useCache = true)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadString skipped at 0x{addr:X}");
+                return string.Empty;
+            }
+            return _actualMemory.ReadString(addr, length, useCache);
+        }
+
+        public string ReadUnityString(ulong addr, int length = 64, bool useCache = true)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadUnityString skipped at 0x{addr:X}");
+                return string.Empty;
+            }
+            return _actualMemory.ReadUnityString(addr, length, useCache);
+        }
+
+        public void WriteValue<T>(LocalGameWorld game, ulong addr, T value) where T : unmanaged
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteValue<{typeof(T).Name}> skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteValue(game, addr, value);
+        }
+
+        public void WriteValue<T>(ulong addr, T value) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteValue<{typeof(T).Name}> skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteValue(addr, value);
+        }
+
+        public void WriteValue<T>(ulong addr, ref T value) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteValue<{typeof(T).Name}> (ref) skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteValue(addr, ref value);
+        }
+
+        public void WriteValueEnsure<T>(ulong addr, T value) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteValueEnsure<{typeof(T).Name}> skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteValueEnsure(addr, value);
+        }
+
+        public void WriteValueEnsure<T>(ulong addr, ref T value) where T : unmanaged, allows ref struct
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteValueEnsure<{typeof(T).Name}> (ref) skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteValueEnsure(addr, ref value);
+        }
+
+        public void WriteBuffer<T>(LocalGameWorld game, ulong addr, Span<T> buffer) where T : unmanaged
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteBuffer<{typeof(T).Name}> skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteBuffer(game, addr, buffer);
+        }
+
+        public void WriteBuffer<T>(ulong addr, Span<T> buffer) where T : unmanaged
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteBuffer<{typeof(T).Name}> skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteBuffer(addr, buffer);
+        }
+
+        public void WriteBufferEnsure<T>(ulong addr, Span<T> buffer) where T : unmanaged
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] WriteBufferEnsure<{typeof(T).Name}> skipped at 0x{addr:X} - Memory writes not available");
+                return;
+            }
+            _actualMemory.WriteBufferEnsure(addr, buffer);
+        }
+
+        public void ReadScatter(IScatterEntry[] entries, bool useCache = true)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadScatter skipped ({entries?.Length ?? 0} entries)");
+                if (entries != null)
+                {
+                    foreach (var entry in entries)
+                        entry.IsFailed = true;
+                }
+                return;
+            }
+            _actualMemory.ReadScatter(entries, useCache);
+        }
+
+        public void ReadCache(params ulong[] va)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ReadCache skipped");
+                return;
+            }
+            _actualMemory.ReadCache(va);
+        }
+
+        public void FullRefresh()
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] FullRefresh skipped");
+                return;
+            }
+            _actualMemory.FullRefresh();
+        }
+
+        public ulong GetExport(string module, string name)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] GetExport skipped for {module}::{name}");
+                return 0;
+            }
+            return _actualMemory.GetExport(module, name);
+        }
+
+        public VmmScatterMemory GetScatter(uint flags)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] GetScatter skipped");
+                return null;
+            }
+            return _actualMemory.GetScatter(flags);
+        }
+
+        public ulong FindSignature(string signature, ulong rangeStart, ulong rangeEnd, VmmProcess process)
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] FindSignature skipped");
+                return 0;
+            }
+            return _actualMemory.FindSignature(signature, rangeStart, rangeEnd, process);
+        }
+
+        public void ThrowIfNotInGame()
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] ThrowIfNotInGame skipped - assuming not in game");
+                return;
+            }
+            _actualMemory.ThrowIfNotInGame();
+        }
+
+        public Rectangle GetMonitorRes()
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] GetMonitorRes returning default resolution");
+                return new Rectangle(0, 0, 1920, 1080);
+            }
+            return _actualMemory.GetMonitorRes();
+        }
+
+        public ulong GetCodeCave()
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] GetCodeCave skipped");
+                return 0;
+            }
+            return _actualMemory.GetCodeCave();
+        }
+
+        public void CloseFPGA()
+        {
+            if (_actualMemory == null)
+            {
+                LoneLogging.WriteLine($"[SafeMode] CloseFPGA skipped");
+                return;
+            }
+            _actualMemory.CloseFPGA();
+        }
     }
 }

@@ -15,8 +15,8 @@
         /// </summary>
         Box = 2,
         /// <summary>
-        /// Renders a dot showing unit's presence.
+        /// Renders a dot showing head.
         /// </summary>
-        Presence = 3
+        HeadDot = 3
     }
 }

@@ -1,12 +1,13 @@
 ﻿using eft_dma_shared.Common.Misc;
 using eft_dma_radar.Tarkov.Features.MemoryWrites;
 using eft_dma_radar.Tarkov.GameWorld;
-using eft_dma_radar.UI.Misc;
+
 using eft_dma_shared.Common.DMA;
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Features;
 using eft_dma_shared.Common.Unity.LowLevel;
 using eft_dma_shared.Common.Unity.LowLevel.Hooks;
+using eft_dma_radar.UI.Misc;
 
 namespace eft_dma_radar.Tarkov.Features
 {
@@ -47,8 +48,7 @@ namespace eft_dma_radar.Tarkov.Features
                                 NativeHook.Initialize();
                             }
                             if (NativeHook.Initialized && 
-                                Chams.Config.Mode is not ChamsManager.ChamsMode.Basic && 
-                                ChamsManager.Materials.Count == 0)
+                                ChamsManager.Materials.Count < 2 && MemWrites.Config.Chams.Enabled)
                             {
                                 ChamsManager.Initialize();
                             }
@@ -175,7 +175,7 @@ namespace eft_dma_radar.Tarkov.Features
         /// <summary>
         /// DMAToolkit/MemWrites Config.
         /// </summary>
-        public static MemWritesConfig Config { get; } = Program.Config.MemWrites;
+        public static MemWritesConfig Config => Program.Config.MemWrites;
 
         /// <summary>
         /// True if Memory Writes are enabled, otherwise False.

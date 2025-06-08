@@ -47,6 +47,34 @@ namespace eft_dma_shared.Common.Misc.Data
         [JsonPropertyName("categories")]
         public IReadOnlyList<string> Tags { get; init; } = new List<string>();
         /// <summary>
+        /// URL to the item's main icon.
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("iconLink")]
+        public string IconLink { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Fallback icon URL if the main icon fails.
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("iconLinkFallback")]
+        public string IconLinkFallback { get; init; } = string.Empty;
+
+        /// <summary>
+        /// URL to the item's full-size image.
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("imageLink")]
+        public string ImageLink { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Weapon caliber if applicable.
+        /// </summary>
+        [JsonInclude]
+        [JsonPropertyName("caliber")]
+        public string Caliber { get; init; } = null;
+
+        /// <summary>
         /// True if this item is Important via the Filters.
         /// </summary>
         [JsonIgnore]
@@ -77,10 +105,20 @@ namespace eft_dma_shared.Common.Misc.Data
         [JsonIgnore]
         public bool IsWeapon => Tags.Contains("Weapon");
         /// <summary>
+        /// Is a Weapon Mod.
+        /// </summary>
+        [JsonIgnore]
+        public bool IsWeaponMod => Tags.Contains("Weapon mod");
+        /// <summary>
         /// Is Currency (Roubles,etc.)
         /// </summary>
         [JsonIgnore]
         public bool IsCurrency => Tags.Contains("Money");
+        /// <summary>
+        /// IsAmmo
+        /// </summary>
+        [JsonIgnore]
+        public bool IsAmmo => Tags.Contains("Ammo");
 
         /// <summary>
         /// This field is set if this item has a special filter.

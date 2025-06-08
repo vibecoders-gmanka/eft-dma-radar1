@@ -2,7 +2,6 @@
 using eft_dma_radar.Tarkov.EFTPlayer.Plugins;
 using eft_dma_radar.Tarkov.GameWorld;
 using eft_dma_radar.UI.Misc;
-using eft_dma_radar.UI.Radar;
 using eft_dma_shared.Common.DMA;
 using eft_dma_shared.Common.ESP;
 using eft_dma_shared.Common.Features;
@@ -11,6 +10,11 @@ using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Ballistics;
 using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.Collections;
+using System.Windows;
+using eft_dma_radar.UI.Pages;
+using Application = System.Windows.Application;
+using eft_dma_shared.Common.Unity.LowLevel;
+using eft_dma_shared.Common.DMA.ScatterAPI;
 
 namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 {
@@ -23,7 +27,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
         /// <summary>
         /// Aimbot Configuration.
         /// </summary>
-        public static AimbotConfig Config { get; } = Program.Config.MemWrites.Aimbot;
+        public static AimbotConfig Config => Program.Config.MemWrites.Aimbot;
         /// <summary>
         /// Aimbot Supported Bones.
         /// </summary>
@@ -104,22 +108,19 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
         /// Executes Aimbot features on the AimbotDMAWorker Thread.
         /// </summary>
         private void SetAimbot(LocalGameWorld game)
-        {
+        {            
             try
             {
                 if (Engaged && Memory.LocalPlayer is LocalPlayer localPlayer && ILocalPlayer.HandsController is ulong handsController && handsController.IsValidVirtualAddress())
                 {
-                    /// Check if the cache is still valid
-                    /// This checks if the HandsController (FirearmController) address has changed for LocalPlayer
-                    /// If it has changed we should re-init the Aimbot Cache
-                    if (Cache != handsController) // Reset Aimbot Cache -> First Cycle
+                    if (Cache != handsController)
                     {
                         LoneLogging.WriteLine("[Aimbot] Reset!");
                         Cache?.ResetLock();
                         Cache = new AimbotCache(handsController);
-                        /// First run checks
+
                         const float targetAccuracy = 0.0003f;
-                        float currentAccuracy = Memory.ReadValue<float>(handsController + Offsets.FirearmController.TotalCenterOfImpact);
+                        var currentAccuracy = Memory.ReadValue<float>(handsController + Offsets.FirearmController.TotalCenterOfImpact);
                         if (currentAccuracy != targetAccuracy &&
                             currentAccuracy > 0f && currentAccuracy < 1f)
                         {
@@ -128,15 +129,14 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
                         }
                     }
 
-                    /// If for some reason the cache is still null, do not continue
                     if (Cache is null)
                     {
                         Thread.Sleep(1);
                         return;
                     }
+
                     Cache.FireportTransform ??= GetFireport(handsController);
 
-                    /// If already locked on, check if the target has died
                     if (Cache.AimbotLockedPlayer is not null)
                     {
                         ulong corpseAddr = Cache.AimbotLockedPlayer.CorpseAddr;
@@ -150,10 +150,10 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
                             }
                         }
                     }
-                    /// If we do not have a target, acquire one
+
                     if (Cache.AimbotLockedPlayer is null)
                     {
-                        if (_firstLock && Config.DisableReLock) // Disable re-locking if configured
+                        if (_firstLock && Config.DisableReLock)
                         {
                             ResetAimbot();
                             while (Engaged)
@@ -163,16 +163,22 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 
                         Cache.AimbotLockedPlayer = GetBestAimbotTarget(game, localPlayer);
                     }
-                    /// If we still do not have a target, Sleep and return
+
+                    if (Cache.AimbotLockedPlayer is not null)
+                    {
+                        if (!Cache.AimbotLockedPlayer.IsAimbotLocked)
+                            PlayerChamsManager.ApplyAimbotChams(Cache.AimbotLockedPlayer, game);
+                    }
+
                     if (Cache.AimbotLockedPlayer is null)
                     {
                         Thread.Sleep(1);
                         return;
                     }
-                    /// We have a valid target and Aimbot can continue
+
                     _firstLock = true;
-                    BeginSilentAim(localPlayer);
-                    Cache.AimbotLockedPlayer.IsAimbotLocked = true; // Locked On
+                    BeginSilentAim(null, localPlayer);
+                    Cache.AimbotLockedPlayer.IsAimbotLocked = true;
                 }
                 else
                 {
@@ -190,10 +196,11 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
         /// <summary>
         /// Begin Silent Aim Aimbot.
         /// </summary>
-        private void BeginSilentAim(LocalPlayer localPlayer)
+        private void BeginSilentAim(LocalGameWorld game, LocalPlayer localPlayer)
         {
             try
             {
+                var writeHandle = new ScatterWriteHandle();
                 var target = Cache.AimbotLockedPlayer;
                 var bone = Config.Bone;
 
@@ -282,7 +289,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
                 Memory.WriteValue(localPlayer.PWA + Offsets.ProceduralWeaponAnimation.ShotNeedsFovAdjustments, false);
                 PatchWeaponDirectionGetter(newWeaponDirection);
                 Cache.LastFireportPos = fireportPosition;
-                Cache.LastPlayerPos = bonePosition;
+                Cache.LastPlayerPos = bonePosition;               
             }
             catch (Exception ex)
             {
@@ -294,7 +301,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
         #endregion
 
         #region Helper Methods
-
+        private static ScatterWriteHandle writes;
         private static Player GetBestAimbotTarget(LocalGameWorld game, Player localPlayer)
         {
             var players = game.Players?
@@ -308,8 +315,9 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
             foreach (var player in players)
             {
                 var distance = Vector3.Distance(localPlayer.Position, player.Position);
-                if (distance > MainForm.Config.MaxDistance)
+                if (distance > MemWrites.Config.Aimbot.Distance)
                     continue;
+
                 foreach (var tr in player.Skeleton.Bones)
                 {
                     if (tr.Key is Bones.HumanBase)
@@ -322,7 +330,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
                             Player = player,
                             FOV = fov,
                             Distance = Vector3.Distance(localPlayer.Position, tr.Value.Position)
-                        };
+                        };                     
                         targets.Add(target);
                     }
                 }
@@ -405,9 +413,13 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
                 int weaponVersion = Memory.ReadValue<int>(Cache.ItemBase + Offsets.LootItem.Version);
                 if (Cache.LastWeaponVersion != weaponVersion) // New round in chamber
                 {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            LootFilterControl.CreateWeaponAmmoGroup();
+                        });
                     var ammoTemplate = FirearmManager.MagazineManager.GetAmmoTemplateFromWeapon(Cache.ItemBase);
                     if (Cache.LoadedAmmo != ammoTemplate)
-                    {
+                    {                        
                         LoneLogging.WriteLine("[Aimbot] Ammo changed!");
                         Cache.Ballistics.BulletMassGrams = Memory.ReadValue<float>(ammoTemplate + Offsets.AmmoTemplate.BulletMassGram);
                         Cache.Ballistics.BulletDiameterMillimeters =

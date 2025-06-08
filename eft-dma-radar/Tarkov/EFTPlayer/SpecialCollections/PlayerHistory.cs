@@ -1,5 +1,11 @@
-﻿using eft_dma_radar.UI.Misc;
-using eft_dma_radar.UI.Radar;
+﻿using eft_dma_radar;
+using eft_dma_radar.Tarkov.EFTPlayer;
+using eft_dma_radar.UI.Misc;
+using eft_dma_shared.Common.Misc;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
 
 namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
 {
@@ -9,8 +15,14 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
     /// </summary>
     public sealed class PlayerHistory
     {
-        private readonly HashSet<ulong> _logged = new();
+        private readonly object _lock = new object();
+        private readonly HashSet<Player> _logged = new();
         private readonly BindingList<PlayerHistoryEntry> _entries = new();
+
+        /// <summary>
+        /// Event that fires when entries are added, updated, or cleared
+        /// </summary>
+        public event EventHandler EntriesChanged;
 
         /// <summary>
         /// Adds an entry to the Player History.
@@ -20,30 +32,47 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
         {
             try
             {
-                if (player.IsHumanOther) /// Log to Player History
+                if (player.IsHumanOther)
                 {
                     var entry = new PlayerHistoryEntry(player);
-                    MainForm.Window?.Invoke(() =>
+                    var changed = false;
+
+                    lock (_lock)
                     {
-                        if (_logged.Add(player)) // Add 
+                        var existingEntryById = _entries.FirstOrDefault(x => !string.IsNullOrEmpty(x.ID) && x.ID == entry.ID);
+
+                        if (existingEntryById != null)
+                        {
+                            existingEntryById.UpdateLastSeen();
+                            changed = true;
+
+                            _logged.Add(player);
+                        }
+                        else if (_logged.Add(player))
                         {
                             _entries.Insert(0, entry);
-                            _entries.ResetBindings();
+                            changed = true;
                         }
-                        else // Update
+                        else
                         {
-                            var oldEntry = _entries.FirstOrDefault(x => (ulong)x.Player == (ulong)player);
-                            if (oldEntry is not null)
+                            var oldEntry = _entries.FirstOrDefault(x => x.Player == player);
+
+                            if (oldEntry != null)
                             {
-                                int index = _entries.IndexOf(oldEntry);
-                                _entries[index] = entry;
-                                _entries.ResetBindings();
+                                oldEntry.UpdateLastSeen();
+                                changed = true;
                             }
                         }
-                    });
+                    }
+
+                    if (changed)
+                        EntriesChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[PlayerHistory] Error in AddOrUpdate: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -52,10 +81,47 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
         /// </summary>
         public void Reset()
         {
-            MainForm.Window?.Invoke(() =>
+            try
             {
-                _logged.Clear();
-            });
+                lock (_lock)
+                {
+                    var existingIds = new HashSet<string>();
+                    foreach (var entry in _entries)
+                    {
+                        if (!string.IsNullOrEmpty(entry.ID))
+                            existingIds.Add(entry.ID);
+                    }
+
+                    _logged.Clear();
+                }
+
+                EntriesChanged?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[PlayerHistory] Error in Reset: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Clears all entries from the player history
+        /// </summary>
+        public void Clear()
+        {
+            try
+            {
+                lock (_lock)
+                {
+                    _logged.Clear();
+                    _entries.Clear();
+                }
+
+                EntriesChanged?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[PlayerHistory] Error in Clear: {ex.Message}");
+            }
         }
 
         /// <summary>

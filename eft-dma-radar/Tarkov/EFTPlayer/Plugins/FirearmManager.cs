@@ -1,8 +1,8 @@
-﻿using eft_dma_shared.Common.Misc;
-using eft_dma_radar.UI.ESP;
+﻿using eft_dma_radar.UI.ESP;
 using eft_dma_radar.UI.Misc;
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.ESP;
+using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Misc.Pools;
 using eft_dma_shared.Common.Players;
@@ -16,7 +16,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
         /// <summary>
         /// Program Configuration.
         /// </summary>
-        private static Config Config { get; } = Program.Config;
+        private static Config Config => Program.Config;
 
         private readonly LocalPlayer _localPlayer;
         private CachedHandsInfo _hands;
@@ -239,10 +239,10 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
             {
                 string ammoInChamber = null;
                 string fireType = null;
+                string ammoFromMag = null;
                 int maxCount = 0;
                 int currentCount = 0;
                 var fireModePtr = Memory.ReadValue<ulong>(hands.ItemAddr + Offsets.LootItemWeapon.FireMode);
-                var chambersPtr = Memory.ReadValue<ulong>(hands.ItemAddr + Offsets.LootItemWeapon.Chambers);
                 var magSlotPtr = Memory.ReadValue<ulong>(hands.ItemAddr + Offsets.LootItemWeapon._magSlotCache);
                 if (fireModePtr != 0x0)
                 {
@@ -250,6 +250,40 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                     if (fireMode >= EFireMode.Auto && fireMode <= EFireMode.SemiAuto)
                         fireType = fireMode.GetDescription();
                 }
+
+                try // does nothing, only exists for the catch to happen
+                {
+                    var chambers = Memory.ReadPtr(hands.ItemAddr + Offsets.LootItemWeapon.Chambers);
+                    var slotPtr = Memory.ReadPtr(chambers + MemList<byte>.ArrStartOffset + 0 * 0x8); // One in the chamber ;)
+                    var slotItem = Memory.ReadPtr(slotPtr + Offsets.Slot.ContainedItem);
+                    var ammoTemplate = Memory.ReadPtr(slotItem + Offsets.LootItem.Template);
+                    var idPtr = Memory.ReadValue<Types.MongoID>(ammoTemplate + Offsets.ItemTemplate._id);
+                    string id = Memory.ReadUnityString(idPtr.StringID);
+                    if (EftDataManager.AllItems.TryGetValue(id, out var ammo))
+                        ammoInChamber = ammo?.ShortName;
+                }
+                catch
+                {
+                    var ammoTemplate_ = GetAmmoTemplateFromWeapon(hands.ItemAddr);
+                    var ammoIdPtr = Memory.ReadValue<Types.MongoID>(ammoTemplate_ + Offsets.ItemTemplate._id);
+                    string ammoId = Memory.ReadUnityString(ammoIdPtr.StringID);
+                    if (EftDataManager.AllItems.TryGetValue(ammoId, out var ammo))
+                        ammoFromMag = ammo?.ShortName;
+                    var magItemPtr = Memory.ReadPtr(magSlotPtr + Offsets.Slot.ContainedItem);
+                    var cartridges = Memory.ReadPtr(magItemPtr + Offsets.LootItemMagazine.Cartridges);
+                    var magStackPtr = Memory.ReadPtr(cartridges + Offsets.StackSlot._items);
+                    var magStack = MemList<ulong>.Get(magStackPtr);
+                    maxCount += Memory.ReadValue<int>(cartridges + Offsets.StackSlot.MaxCount);
+                    var magStackPtr_ = Memory.ReadPtr(cartridges + Offsets.StackSlot._items);
+                    using var magStack_ = MemList<ulong>.Get(magStackPtr);
+                    foreach (var stack in magStack_) // Each ammo type will be a separate stack
+                    {
+                        if (stack != 0x0)
+                            currentCount += Memory.ReadValue<int>(stack + Offsets.MagazineClass.StackObjectsCount, false);
+                    }
+                }
+
+                var chambersPtr = Memory.ReadValue<ulong>(hands.ItemAddr + Offsets.LootItemWeapon.Chambers);
                 if (chambersPtr != 0x0) // Single chamber, or for some shotguns, multiple chambers
                 {
                     using var chambers = MemArray<Chamber>.Get(chambersPtr);
@@ -257,6 +291,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                     ammoInChamber = GetLoadedAmmoName(chambers.FirstOrDefault(x => x.HasBullet()));
                     maxCount += chambers.Count;
                 }
+
                 if (magSlotPtr != 0x0)
                 {
                     var magItem = Memory.ReadValue<ulong>(magSlotPtr + Offsets.Slot.ContainedItem);
@@ -264,7 +299,7 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                     {
                         var magChambersPtr = Memory.ReadPtr(magItem + Offsets.LootItemMod.Slots);
                         using var magChambers = MemArray<Chamber>.Get(magChambersPtr);
-                        if (magChambers.Count > 0) // Revolvers, etc.
+                        if (magChambers.Count > 0 || ammoInChamber is null) // Revolvers, etc.
                         {
                             maxCount += magChambers.Count;
                             currentCount += magChambers.Count(x => x.HasBullet());
@@ -284,7 +319,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                         }
                     }
                 }
-                _ammo = ammoInChamber;
+
+                _ammo = ammoInChamber ?? ammoFromMag;
                 _fireType = fireType;
                 Count = currentCount;
                 MaxCount = maxCount;

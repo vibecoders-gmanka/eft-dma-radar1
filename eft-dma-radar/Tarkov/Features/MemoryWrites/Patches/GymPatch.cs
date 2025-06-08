@@ -90,11 +90,5 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites.Patches
                 return pMethod001;
             }
         }
-        //		private bool \uE001()
-        //		{
-        //			float x = this._dynamicCircleOuterBorder.transform.localScale.x;
-        //			bool flag = (double)x >= this.\uE002 && (double)x <= this.\uE001;
-        //			return Input.GetKeyDown(this._targetInput) && flag;
-        //		}
     }
 }

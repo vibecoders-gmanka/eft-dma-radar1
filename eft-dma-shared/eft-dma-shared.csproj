@@ -2,12 +2,13 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0-windows</TargetFramework>
+	<RootNamespace>eft_dma_shared</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>warnings</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <Configurations>Debug;Release;Commercial</Configurations>
     <Platforms>x64</Platforms>
-	<UseWindowsForms>true</UseWindowsForms>
+	<UseWPF>true</UseWPF>
   </PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Commercial|x64'">
@@ -17,6 +18,11 @@
 	<ItemGroup>
 		<EmbeddedResource Include="..\Resources\visible.bundle" />
 		<EmbeddedResource Include="..\Resources\visibilitycheck.bundle" />
+		<EmbeddedResource Include="..\Resources\vicheckglowpmc.bundle" />
+		<EmbeddedResource Include="..\Resources\vischeckflat.bundle" />
+		<EmbeddedResource Include="..\Resources\vischeckflatpmc.bundle" />
+		<EmbeddedResource Include="..\Resources\wireframe.bundle" />
+		<EmbeddedResource Include="..\Resources\wireframepmc.bundle" />
 		<EmbeddedResource Include="..\Resources\FILE_CRYPT_KEY.bin" />
 		<EmbeddedResource Include="..\Resources\NeoSansStdRegular.otf" />
 		<EmbeddedResource Include="..\Resources\NeoSansStdMedium.otf" />
@@ -44,14 +50,31 @@
   </PropertyGroup>
 
   <ItemGroup>
-	  <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="2.88.9" />
-	  <PackageReference Include="Svg.Skia" Version="2.0.0.4" />
+	  <PackageReference Include="HandyControls" Version="3.6.0" />
+	  <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="9.0.5" />
+	  <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
+	  <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="3.119.0" />
+	  <PackageReference Include="SkiaSharp.Views.WPF" Version="3.119.0" />
+	  <PackageReference Include="Svg.Skia" Version="3.0.3" />
+	  <PackageReference Include="Reloaded.Assembler" Version="1.0.16" />
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="VmmFrost">
-      <HintPath>..\VmmFrost.dll</HintPath>
+    <Reference Include="vmmsharp">
+      <HintPath>..\VmmSharp.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Common\UI\Controls\KeyInputBox.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Common\UI\Controls\MessageBox.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Common\UI\Controls\TextValueSlider.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.IO;
+using System.Reflection;
 using System.Security.Cryptography;
 
 namespace eft_dma_shared.Common.Misc
@@ -47,7 +48,7 @@ namespace eft_dma_shared.Common.Misc
         private static byte[] UnpackEncryptionKey()
         {
             // Unpack AES Key from Resources
-            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft-dma-shared.FILE_CRYPT_KEY.bin"))
+            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft_dma_shared.FILE_CRYPT_KEY.bin"))
             {
                 var key = new byte[stream!.Length];
                 stream.ReadExactly(key);

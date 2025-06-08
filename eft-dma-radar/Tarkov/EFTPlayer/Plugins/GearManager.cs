@@ -8,6 +8,33 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
 {
     public sealed class GearManager
     {
+        private static readonly FrozenSet<string> THERMAL_IDS = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "5c110624d174af029e69734c", // T7 Thermal Goggles
+            "6478641c19d732620e045e17", // ECHO1 1-2x30mm 30Hz thermal reflex
+            "609bab8b455afd752b2e6138", // T12W 30Hz thermal reflex sight
+            "63fc44e2429a8a166c7f61e6", // Armasight Zeus-Pro 640 2-8x50 30Hz
+            "5d1b5e94d7ad1a2b865a96b0", // FLIR RS-32 2.25-9x 35mm 60Hz
+            "606f2696f2cb2e02a42aceb1", // MP-155 Ultima thermal camera
+            "5a1eaa87fcdbcb001865f75e"  // Trijicon REAP-IR thermal
+        }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly FrozenSet<string> NVG_IDS = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "5c066e3a0db834001b7353f0", // N-15 Night Vision
+            "5c0696830db834001d23f5da", // PNV-10T Night Vision
+            "5c0558060db834001b735271", // GPNVG-18 Night Vision
+            "57235b6f24597759bf5a30f1", // AN/PVS-14 Night Vision Monocular
+            "5b3b6e495acfc4330140bd88", // Vulcan MG night scope 3.5x
+            "5a7c74b3e899ef0014332c29"  // NSPU-M night Scope
+        }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly FrozenSet<string> UBGL_IDS = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "62e7e7bbe6da9612f743f1e0", // GP-25 Kostyor 40mm
+            "6357c98711fb55120211f7e1", // M203 40mm
+        }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
         private static readonly FrozenSet<string> _skipSlots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "SecuredContainer", "Dogtag", "Compass", "ArmBand"
@@ -56,6 +83,21 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
         public bool HasQuestItems => Loot?.Any(x => x.IsQuestCondition) ?? false;
 
         /// <summary>
+        /// True if NVG item are contained in this loot pool.
+        /// </summary>
+        public bool HasNVG { get; private set; }
+
+        /// <summary>
+        /// True if Thermal item is contained in this loot pool.
+        /// </summary>
+        public bool HasThermal { get; private set; }
+
+        /// <summary>
+        /// True if Underbarrel Grenade Launcher is contained in this loot pool.
+        /// </summary>
+        public bool HasUBGL { get; private set; }
+
+        /// <summary>
         /// Value of this player's Gear/Loot.
         /// </summary>
         public int Value { get; private set; }
@@ -69,32 +111,31 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                 {
                     if (_isPMC && slot.Key == "Scabbard")
                         continue; // skip pmc scabbard
+
                     var containedItem = Memory.ReadPtr(slot.Value + Offsets.Slot.ContainedItem);
                     var inventorytemplate = Memory.ReadPtr(containedItem + Offsets.LootItem.Template);
                     var idPtr = Memory.ReadValue<Types.MongoID>(inventorytemplate + Offsets.ItemTemplate._id);
                     var id = Memory.ReadUnityString(idPtr.StringID);
+
                     if (EftDataManager.AllItems.TryGetValue(id, out var entry1))
                         loot.Add(new LootItem(entry1));
+
                     try // Get all items on player
                     {
                         var grids = Memory.ReadValue<ulong>(containedItem + Offsets.LootItemMod.Grids);
                         LootManager.GetItemsInGrid(grids, loot);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
 
                     if (EftDataManager.AllItems.TryGetValue(id, out var entry2))
                     {
                         if (slot.Key == "FirstPrimaryWeapon" || slot.Key == "SecondPrimaryWeapon" ||
-                            slot.Key == "Headwear") // Only interested in weapons / helmets
+                            slot.Key == "Holster" || slot.Key == "Headwear") // Only interested in weapons / helmets
                             try
                             {
                                 RecursePlayerGearSlots(containedItem, loot);
                             }
-                            catch
-                            {
-                            }
+                            catch { }
 
                         var gear = new GearItem
                         {
@@ -104,13 +145,14 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                         gearDict.TryAdd(slot.Key, gear);
                     }
                 }
-                catch
-                {
-                } // Skip over empty slots
+                catch { } // Skip over empty slots
 
             Loot = loot.OrderLoot().ToList();
             Value = loot.Sum(x => x.Price); // Get value of player's loot/gear
             Equipment = gearDict; // update readonly ref
+            HasNVG = Loot.Any(x => NVG_IDS.Contains(x.ID));
+            HasThermal = Loot.Any(x => THERMAL_IDS.Contains(x.ID));
+            HasUBGL = Loot.Any(x => UBGL_IDS.Contains(x.ID));
         }
 
         /// <summary>

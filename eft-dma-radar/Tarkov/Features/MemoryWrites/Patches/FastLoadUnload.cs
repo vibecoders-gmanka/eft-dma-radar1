@@ -74,6 +74,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites.Patches
                         var magDrillsUnloadSpeedPtr = Memory.ReadPtr(skillsPtr + Offsets.SkillManager.MagDrillsUnloadSpeed);
                         Memory.WriteValue(magDrillsLoadSpeedPtr + Offsets.SkillValueContainer.Value, _newMagDrillsLoadSpeed);
                         Memory.WriteValue(magDrillsUnloadSpeedPtr + Offsets.SkillValueContainer.Value, _newMagDrillsUnloadSpeed);
+
                         if (!_set)
                         {
                             _set = true;
@@ -105,10 +106,13 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites.Patches
             {
                 if (!NativeHook.Initialized)
                     throw new Exception("NativeHook not initialized.");
+
                 var @class = MonoLib.MonoClass.Find("Assembly-CSharp", ClassNames.AmmoTemplate.ClassName, out ulong classAddr);
                 classAddr.ThrowIfInvalidVirtualAddress();
+
                 if (NativeMethods.CompileClass(classAddr) == 0)
                     throw new Exception("Failed to compile class");
+
                 if (@class.TryFindJittedMethod(ClassNames.AmmoTemplate.MethodName, out ulong method))
                 {
                     return method;

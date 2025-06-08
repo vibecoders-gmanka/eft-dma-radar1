@@ -1,6 +1,10 @@
 ﻿using eft_dma_radar.UI.Misc;
-using eft_dma_radar.UI.Radar;
+using eft_dma_shared.Common.Misc;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
 
 namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
 {
@@ -10,7 +14,10 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
     /// </summary>
     public sealed class PlayerWatchlist
     {
+        private readonly object _lock = new object();
         private readonly SortableBindingList<PlayerWatchlistEntry> _bindingList;
+
+        public event EventHandler EntriesChanged;
 
         /// <summary>
         /// Entries in this watchlist.
@@ -18,19 +25,13 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
         public IReadOnlyDictionary<string, PlayerWatchlistEntry> Entries { get; private set; } = new Dictionary<string, PlayerWatchlistEntry>();
 
         /// <summary>
-        /// Singleton Constructor.
-        /// Only construct once!
+        /// Constructor.
         /// </summary>
         public PlayerWatchlist()
         {
-            Program.Config.PlayerWatchlist = Program.Config.PlayerWatchlist
-                .Where(x => x is not null && !string.IsNullOrWhiteSpace(x.AcctID))
-                .OrderBy(x => x.Timestamp.Ticks)
-                .DistinctBy(x => x.AcctID)
-                .ToList(); // Sanitize List
-            _bindingList = new(Program.Config.PlayerWatchlist);
-            Update();
+            _bindingList = new SortableBindingList<PlayerWatchlistEntry>(new List<PlayerWatchlistEntry>());
             _bindingList.ListChanged += Entries_ListChanged;
+            Update();
         }
 
         private void Entries_ListChanged(object sender, ListChangedEventArgs e) => Update();
@@ -40,24 +41,70 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.SpecialCollections
         /// </summary>
         private void Update()
         {
-            this.Entries = _bindingList
-                .DistinctBy(x => x.AcctID)
-                .ToDictionary(
-                    item => item.AcctID, // key
-                    item => item); // value
+            lock (_lock)
+            {
+                this.Entries = _bindingList
+                    .DistinctBy(x => x.AccountID)
+                    .ToDictionary(
+                        item => item.AccountID,
+                        item => item);
+            }
+
+            EntriesChanged?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
         /// Manually add an entry into the Player Watchlist.
-        /// Will be invoked on the UI Thread.
         /// </summary>
         /// <param name="entry">Entry to add.</param>
         public void ManualAdd(PlayerWatchlistEntry entry)
         {
-            MainForm.Window?.Invoke(() =>
+            try
             {
-                _bindingList.Add(entry);
-            });
+                if (!string.IsNullOrEmpty(entry.AccountID))
+                {
+                    lock (_lock)
+                    {
+                        if (Entries.ContainsKey(entry.AccountID))
+                        {
+                            var existingEntry = _bindingList.FirstOrDefault(e => e.AccountID == entry.AccountID);
+                            if (existingEntry != null)
+                                existingEntry.Reason = entry.Reason;
+                        }
+                        else
+                        {
+                            _bindingList.Add(entry);
+                        }
+                    }
+
+                    Update();
+
+                    if (MainWindow.Window?.WatchlistControl != null)
+                        MainWindow.Window.WatchlistControl.SaveWatchlistToFile();
+                }
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[PlayerWatchlist] Error in ManualAdd: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Clear all entries from the watchlist.
+        /// </summary>
+        public void Clear()
+        {
+            try
+            {
+                lock (_lock)
+                {
+                    _bindingList.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[PlayerWatchlist] Error in Clear: {ex.Message}");
+            }
         }
 
         /// <summary>

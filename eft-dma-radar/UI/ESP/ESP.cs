@@ -7,6 +7,6 @@ namespace eft_dma_radar.UI.ESP
         /// <summary>
         /// ESP Configuration.
         /// </summary>
-        public static ESPConfig Config { get; } = Program.Config.ESP;
+        public static ESPConfig Config => Program.Config.ESP;
     }
 }

@@ -2,6 +2,12 @@
 {
     public readonly struct UnityOffsets
     {
+        public readonly struct Component
+        {
+            public const uint Size = 0x38; // Equal to sizeof(Unity::Component) __This is not a struct field__
+            public static readonly uint[] To_NativeClassName = new uint[] { 0x0, 0x0, 0x48 }; // String
+            public const uint GameObject = 0x30; // To GameObject
+        }        
         public readonly struct ModuleBase
         {
             public const uint GameObjectManager = 0x1CF93E0; // to eft_dma_radar.GameObjectManager
@@ -31,7 +37,11 @@
             public const uint Materials = 0x148; // m_Materials : dynamic_array<PPtr<Material>,0>
             public const uint Count = 0x158; // Extends from m_Materials type (0x20 length?)
         }
-
+        public readonly struct Behaviour
+        {
+            public const uint IsEnabled = 0x38; // bool, Behaviour : m_Enabled
+            public const uint IsAdded = 0x39; // bool, Behaviour : m_IsAdded
+        }
         public readonly struct Camera
         {
             // CopiableState struct begins at 0x40
@@ -55,5 +65,10 @@
         {
             public const uint OpticMaskMaterial = 0x60; // -.SSAA->_opticMaskMaterial // Offset: 0x0060 (Type: UnityEngine.Material)
         }
+        public readonly struct UnityString
+        {
+            public const uint Length = 0x10; // int32
+            public const uint Value = 0x14; // string,unicode
+        }        
     }
 }

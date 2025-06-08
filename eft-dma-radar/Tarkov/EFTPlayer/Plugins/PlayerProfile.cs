@@ -1,5 +1,7 @@
 ﻿using eft_dma_radar.Tarkov.API;
 using eft_dma_shared.Common.Misc.Data;
+using HandyControl.Tools.Extension;
+using System.Threading;
 
 namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
 {
@@ -15,6 +17,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
         /// Player's Nickname (via Profile Data).
         /// </summary>
         public string Nickname => this.Profile?.Info?.Nickname;
+
+        public int Prestige => this.Profile?.Info?.Prestige ?? -1;
 
         /// <summary>
         /// Player's current profile (if Profile Lookups are enabled).
@@ -108,6 +112,50 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                         return _survivedRate = ((float)survived / (float)raidCount) * 100f;
                     }
                 }
+                return null;
+            }
+        }
+
+        private string? _updated;
+
+        public string? Updated
+        {
+            get
+            {
+                if (_updated is string updated && !updated.IsNullOrEmpty())
+                    return updated;
+
+                var profile = Profile?.Updated;
+                if (profile is not null)
+                {
+                    try
+                    {
+                        var fixUnix = profile.ToString().Substring(0, profile.ToString().Length - 3);
+                        var time = (DateTime.Now - DateTimeOffset.FromUnixTimeSeconds(Convert.ToInt64(fixUnix)).LocalDateTime);
+
+                        if (time.Days > 0)
+                        {
+                            return _updated = time.Hours > 0 ? $"{time.Days}d,{time.Hours}h" : $"{time.Days}d";
+                        }
+                        else if (time.Hours > 0)
+                        {
+                            return _updated = time.Minutes > 0 ? $"{time.Hours}h,{time.Minutes}m" : $"{time.Hours}h";
+                        }
+                        else if (time.Minutes > 0)
+                        {
+                            return _updated = $"{time.Minutes}m";
+                        }
+                        else
+                        {
+                            return _updated = $"{time.Seconds}s";
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        return _updated = "--";
+                    }
+                }
+
                 return null;
             }
         }

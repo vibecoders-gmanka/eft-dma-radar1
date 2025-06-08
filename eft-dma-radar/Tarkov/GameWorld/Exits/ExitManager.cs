@@ -37,6 +37,14 @@ namespace eft_dma_radar.Tarkov.GameWorld.Exits
                 var exfil = new Exfil(exfilAddr, _isPMC);
                 list.Add(exfil);
             }
+            /// Secret Extracts
+            var secretExfil = Memory.ReadPtr(exfilController + Offsets.ExfilController.SecretExfiltrationPointArray, false);
+            using var secrets = MemArray<ulong>.Get(secretExfil, false);
+            foreach (var secretAddr in secrets)
+            {
+                var exfil = new Exfil(secretAddr, true);
+                list.Add(exfil);
+            }
             /// Transits
             var transitController = Memory.ReadPtr(_localGameWorld + Offsets.ClientLocalGameWorld.TransitController, false);
             var transitsPtr = Memory.ReadPtr(transitController + Offsets.TransitController.TransitPoints, false);
@@ -59,6 +67,7 @@ namespace eft_dma_radar.Tarkov.GameWorld.Exits
             {
                 if (_exits is null) // Initialize
                     Init();
+
                 ArgumentNullException.ThrowIfNull(_exits, nameof(_exits));
                 using var map = ScatterReadMap.Get();
                 var round1 = map.AddRound();
@@ -72,9 +81,7 @@ namespace eft_dma_radar.Tarkov.GameWorld.Exits
                         round1[i].Callbacks += index =>
                         {
                             if (index.TryGetResult<int>(0, out var status))
-                            {
                                 exfil.Update((Enums.EExfiltrationStatus)status);
-                            }
                         };
                     }
                 }

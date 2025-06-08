@@ -1,12 +1,14 @@
 ﻿global using static eft_dma_shared.Common.DMA.MemoryInterface;
-using VmmFrost;
-using System.Diagnostics;
-using System.Text;
-using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
-using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.DMA.ScatterAPI;
+using eft_dma_shared.Common.Misc;
+using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.LowLevel.Hooks;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
+using Vmmsharp;
 
 namespace eft_dma_shared.Common.DMA
 {
@@ -34,15 +36,13 @@ namespace eft_dma_shared.Common.DMA
         protected static readonly ManualResetEvent _syncProcessRunning = new(false);
         protected static readonly ManualResetEvent _syncInRaid = new(false);
         protected readonly Vmm _hVMM;
-        protected uint _pid;
         protected bool _restartRadar;
-
         /// <summary>
         /// Current Process ID (PID).
         /// </summary>
-        public uint PID => _pid;
         public ulong MonoBase { get; protected set; }
         public ulong UnityBase { get; protected set; }
+        public VmmProcess Process { get; protected set; }
         public virtual bool Starting { get; }
         public virtual bool Ready { get; }
         public virtual bool InRaid { get; }
@@ -63,7 +63,7 @@ namespace eft_dma_shared.Common.DMA
         /// <summary>
         /// Vmm Handle for this DMA Connection.
         /// </summary>
-        public nint VmmHandle => _hVMM;
+        public Vmm VmmHandle => _hVMM;
 
         private MemDMABase() { }
 
@@ -88,7 +88,7 @@ namespace eft_dma_shared.Common.DMA
                 {
                     LoneLogging.WriteLine("[DMA] No MemMap, attempting to generate...");
                     _hVMM = new Vmm(initArgs);
-                    var map = _hVMM.GetMemoryMap() ??
+                    var map = _hVMM.MapMemoryAsString() ??
                         throw new Exception("Map_GetPhysMem FAIL");
                     var mapBytes = Encoding.ASCII.GetBytes(map);
                     if (!_hVMM.LeechCore.Command(LeechCore.LC_CMD_MEMMAP_SET, mapBytes, out _))
@@ -107,31 +107,20 @@ namespace eft_dma_shared.Common.DMA
                 SetCustomVMMRefresh();
                 MemoryInterface.Memory = this;
                 LoneLogging.WriteLine("DMA Initialized!");
+
+                Process = _hVMM.Process("EscapeFromTarkov.exe");
             }
             catch (Exception ex)
             {
-                LoneLogging.WriteLine("WARNING: DMA Initialization Failed!");
-                LoneLogging.WriteLine($"Reason: {ex.Message}");
-                LoneLogging.WriteLine($"{versions}");
-
-                // Log troubleshooting steps
-                LoneLogging.WriteLine("===TROUBLESHOOTING===");
-                LoneLogging.WriteLine("1. Reboot both your Game PC / Radar PC (This USUALLY fixes it).");
-                LoneLogging.WriteLine("2. Reseat all cables/connections and make sure they are secure.");
-                LoneLogging.WriteLine("3. Changed Hardware/Operating System on Game PC? Reset your DMA Config ('Options' menu in Client) and try again.");
-                LoneLogging.WriteLine("4. Make sure all Setup Steps are completed (See DMA Setup Guide/FAQ for additional troubleshooting).");
-
-                DialogResult result = MessageBox.Show(
-                    "DMA Initialization Failed!\n\nCreating a dummy window for debugging?",
-                    "DMA Initialization Failed!",
-                    MessageBoxButtons.OKCancel,
-                    MessageBoxIcon.Warning
-                );
-
-                if (result == DialogResult.Cancel || result == DialogResult.None)
-                {
-                    Environment.Exit(0);
-                }
+                throw new Exception(
+                "DMA Initialization Failed!\n" +
+                $"Reason: {ex.Message}\n" +
+                $"{versions}\n\n" +
+                "===TROUBLESHOOTING===\n" +
+                "1. Reboot both your Game PC / Radar PC (This USUALLY fixes it).\n" +
+                "2. Reseat all cables/connections and make sure they are secure.\n" +
+                "3. Changed Hardware/Operating System on Game PC? Delete your mmap.txt and symbols folder.\n" +
+                "4. Make sure all Setup Steps are completed (See DMA Setup Guide/FAQ for additional troubleshooting).");
             }
         }
 
@@ -161,7 +150,7 @@ namespace eft_dma_shared.Common.DMA
 
         private void tlbRefreshTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            if (_hVMM == null || !_hVMM.SetConfig(Vmm.CONFIG_OPT_REFRESH_FREQ_TLB_PARTIAL, 1))
+            if (!_hVMM.SetConfig(Vmm.CONFIG_OPT_REFRESH_FREQ_TLB_PARTIAL, 1))
                 LoneLogging.WriteLine("WARNING: Vmm TLB Refresh (Partial) Failed!");
         }
 
@@ -170,7 +159,7 @@ namespace eft_dma_shared.Common.DMA
         /// </summary>
         public void FullRefresh()
         {
-            if (_hVMM == null || !_hVMM.SetConfig(Vmm.CONFIG_OPT_REFRESH_ALL, 1))
+            if (!_hVMM.SetConfig(Vmm.CONFIG_OPT_REFRESH_ALL, 1))
                 LoneLogging.WriteLine("WARNING: Vmm FULL Refresh Failed!");
         }
 
@@ -282,11 +271,11 @@ namespace eft_dma_shared.Common.DMA
                 return;
 
             uint flags = useCache ? 0 : Vmm.FLAG_NOCACHE;
-            using var hScatter = _hVMM.MemReadScatter2(_pid, flags, pagesToRead.ToArray());
+            using var hScatter = Process.MemReadScatter2(flags, pagesToRead.ToArray());
             if (AntiPage.Initialized)
             {
-                foreach (var failed in hScatter.Failed)
-                    AntiPage.Register(failed, 8); // This is always one page at a time
+                foreach (var failed in hScatter.Results)
+                    AntiPage.Register(failed.Key, 8); // This is always one page at a time
             }
 
             foreach (var entry in entries) // Second loop through all entries - PARSE RESULTS
@@ -307,7 +296,7 @@ namespace eft_dma_shared.Common.DMA
         /// <param name="va"></param>
         public void ReadCache(params ulong[] va)
         {
-            _hVMM.MemPrefetchPages(_pid, va);
+            Process.MemPrefetchPages(va);
         }
 
         /// <summary>
@@ -325,7 +314,7 @@ namespace eft_dma_shared.Common.DMA
             {
                 uint flags = useCache ? 0 : Vmm.FLAG_NOCACHE;
 
-                if (!_hVMM.MemReadSpan(_pid, addr, buffer, out uint cbRead, flags))
+                if (!Process.MemReadSpan(addr, buffer, out uint cbRead, flags))
                     throw new VmmException("Memory Read Failed!");
 
                 if (cbRead == 0)
@@ -340,7 +329,7 @@ namespace eft_dma_shared.Common.DMA
                 throw;
             }
         }
-
+        
         /// <summary>
         /// Read memory into a Buffer of type <typeparamref name="T"/> and ensure the read is correct.
         /// </summary>
@@ -357,18 +346,26 @@ namespace eft_dma_shared.Common.DMA
                 var buffer2 = new T[buffer1.Length].AsSpan();
                 var buffer3 = new T[buffer1.Length].AsSpan();
                 uint cbRead;
-                if (!_hVMM.MemReadSpan(_pid, addr, buffer3, out cbRead, Vmm.FLAG_NOCACHE))
+
+                if (!Process.MemReadSpan(addr, buffer3, out cbRead, Vmm.FLAG_NOCACHE))
                     throw new VmmException("Memory Read Failed!");
+
                 if (cbRead != cb)
                     throw new VmmException("Memory Read Failed!");
+
                 Thread.SpinWait(5);
-                if (!_hVMM.MemReadSpan(_pid, addr, buffer2, out cbRead, Vmm.FLAG_NOCACHE))
+
+                if (!Process.MemReadSpan(addr, buffer2, out cbRead, Vmm.FLAG_NOCACHE))
                     throw new VmmException("Memory Read Failed!");
+
                 if (cbRead != cb)
                     throw new VmmException("Memory Read Failed!");
+
                 Thread.SpinWait(5);
-                if (!_hVMM.MemReadSpan(_pid, addr, buffer1, out cbRead, Vmm.FLAG_NOCACHE))
+
+                if (!Process.MemReadSpan(addr, buffer1, out cbRead, Vmm.FLAG_NOCACHE))
                     throw new VmmException("Memory Read Failed!");
+
                 if (cbRead != cb)
                     throw new VmmException("Memory Read Failed!");
                 if (!buffer1.SequenceEqual(buffer2) || !buffer1.SequenceEqual(buffer3) || !buffer2.SequenceEqual(buffer3))
@@ -383,6 +380,56 @@ namespace eft_dma_shared.Common.DMA
                 throw;
             }
         }
+        /// <summary>
+        /// Read memory into a buffer and validate the right bytes were received.
+        /// </summary>
+        public static unsafe byte[] ReadBufferEnsureE(ulong addr, int size)
+        {
+            const int ValidationCount = 3;
+        
+            try
+            {
+                if (MemoryInterface.Memory == null)
+                    throw new Exception("[DMA] MemoryInterface.Memory is not initialized!");
+        
+                byte[][] buffers = new byte[ValidationCount][];
+                for (int i = 0; i < ValidationCount; i++)
+                {
+                    buffers[i] = new byte[size];
+                    fixed (byte* bufferPtr = buffers[i])
+                    {
+                        uint bytesRead;
+                        bool success = MemoryInterface.Memory.Process.MemRead(
+                            addr,                          // memory address
+                            (nint)bufferPtr,               // pointer to buffer
+                            (uint)size,                    // size to read
+                            out bytesRead,                 // actual bytes read
+                            Vmm.FLAG_NOCACHE               // no cache flag
+                        );
+        
+                        if (!success || bytesRead != size)
+                            throw new Exception($"Incomplete memory read ({bytesRead}/{size}) at 0x{addr:X}");
+                    }
+                }
+        
+                // Validation: ensure all reads match
+                for (int i = 1; i < ValidationCount; i++)
+                {
+                    if (!buffers[i].SequenceEqual(buffers[0]))
+                    {
+                        LoneLogging.WriteLine($"[WARN] ReadBufferEnsure() -> 0x{addr:X} failed memory consistency check.");
+                        return null;
+                    }
+                }
+        
+                return buffers[0];
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"[DMA] ERROR reading buffer at 0x{addr:X}", ex);
+            }
+        }
+
 
         /// <summary>
         /// Read a chain of pointers and get the final result.
@@ -405,7 +452,21 @@ namespace eft_dma_shared.Common.DMA
             pointer.ThrowIfInvalidVirtualAddress();
             return pointer;
         }
+        public unsafe T Read<T>(ulong address) where T : unmanaged
+        {
+            var size = (uint)Unsafe.SizeOf<T>();
+            var bytes = Process.MemRead(address, size);
+            if (bytes == null || bytes.Length != size)
+                throw new ArgumentException($"Failed to read {typeof(T).Name} from 0x{address:X}");
 
+            unsafe
+            {
+                fixed (byte* ptr = bytes)
+                {
+                    return *(T*)ptr;
+                }
+            }
+        }
         /// <summary>
         /// Read value type/struct from specified address.
         /// </summary>
@@ -417,7 +478,16 @@ namespace eft_dma_shared.Common.DMA
             try
             {
                 uint flags = useCache ? 0 : Vmm.FLAG_NOCACHE;
-                return _hVMM.MemReadAs<T>(_pid, addr, flags);
+                byte[] data = Process.MemRead(addr, (uint)sizeof(T), flags);
+
+                if (data.Length != sizeof(T))
+                    throw new VmmException("Memory Read Failed!");
+
+                T result;
+                fixed (byte* ptr = data)
+                    result = *(T*)ptr;
+
+                return result;
             }
             catch (VmmException)
             {
@@ -439,7 +509,13 @@ namespace eft_dma_shared.Common.DMA
             try
             {
                 uint flags = useCache ? 0 : Vmm.FLAG_NOCACHE;
-                _hVMM.MemReadAs<T>(_pid, addr, out result, flags);
+                byte[] data = Process.MemRead(addr, (uint)sizeof(T), flags);
+
+                if (data.Length != sizeof(T))
+                    throw new VmmException("Memory Read Failed!");
+
+                fixed (byte* ptr = data)
+                    result = *(T*)ptr;
             }
             catch (VmmException)
             {
@@ -460,18 +536,41 @@ namespace eft_dma_shared.Common.DMA
             int cb = sizeof(T);
             try
             {
-                T r1 = _hVMM.MemReadAs<T>(_pid, addr, Vmm.FLAG_NOCACHE);
+                byte[] data1 = Process.MemRead(addr, (uint)cb, Vmm.FLAG_NOCACHE);
+                if (data1.Length != cb)
+                    throw new VmmException("Memory Read Failed!");
+
+                T r1;
+                fixed (byte* ptr1 = data1)
+                    r1 = *(T*)ptr1;
+
                 Thread.SpinWait(5);
-                T r2 = _hVMM.MemReadAs<T>(_pid, addr, Vmm.FLAG_NOCACHE);
+
+                byte[] data2 = Process.MemRead(addr, (uint)cb, Vmm.FLAG_NOCACHE);
+                if (data2.Length != cb)
+                    throw new VmmException("Memory Read Failed!");
+
+                T r2;
+                fixed (byte* ptr2 = data2)
+                    r2 = *(T*)ptr2;
+
                 Thread.SpinWait(5);
-                T r3 = _hVMM.MemReadAs<T>(_pid, addr, Vmm.FLAG_NOCACHE);
+
+                byte[] data3 = Process.MemRead(addr, (uint)cb, Vmm.FLAG_NOCACHE);
+                if (data3.Length != cb)
+
+                    throw new VmmException("Memory Read Failed!");
+
+                T r3;
+                fixed (byte* ptr3 = data3)
+                    r3 = *(T*)ptr3;
+
                 var b1 = new ReadOnlySpan<byte>(&r1, cb);
                 var b2 = new ReadOnlySpan<byte>(&r2, cb);
                 var b3 = new ReadOnlySpan<byte>(&r3, cb);
                 if (!b1.SequenceEqual(b2) || !b1.SequenceEqual(b3) || !b2.SequenceEqual(b3))
-                {
                     throw new VmmException("Memory Read Failed!");
-                }
+
                 return r1;
             }
             catch (VmmException)
@@ -493,18 +592,41 @@ namespace eft_dma_shared.Common.DMA
             int cb = sizeof(T);
             try
             {
-                T r1 = _hVMM.MemReadAs<T>(_pid, addr, Vmm.FLAG_NOCACHE);
+                byte[] data1 = Process.MemRead(addr, (uint)cb, Vmm.FLAG_NOCACHE);
+                if (data1.Length != cb)
+                    throw new VmmException("Memory Read Failed!");
+
+                T r1;
+                fixed (byte* ptr1 = data1)
+                    r1 = *(T*)ptr1;
+
                 Thread.SpinWait(5);
-                T r2 = _hVMM.MemReadAs<T>(_pid, addr, Vmm.FLAG_NOCACHE);
+
+                byte[] data2 = Process.MemRead(addr, (uint)cb, Vmm.FLAG_NOCACHE);
+                if (data2.Length != cb)
+                    throw new VmmException("Memory Read Failed!");
+
+                T r2;
+                fixed (byte* ptr2 = data2)
+                    r2 = *(T*)ptr2;
+
                 Thread.SpinWait(5);
-                T r3 = _hVMM.MemReadAs<T>(_pid, addr, Vmm.FLAG_NOCACHE);
+
+                byte[] data3 = Process.MemRead(addr, (uint)cb, Vmm.FLAG_NOCACHE);
+                if (data3.Length != cb)
+                    throw new VmmException("Memory Read Failed!");
+
+                T r3;
+                fixed (byte* ptr3 = data3)
+                    r3 = *(T*)ptr3;
+
                 var b1 = new ReadOnlySpan<byte>(&r1, cb);
                 var b2 = new ReadOnlySpan<byte>(&r2, cb);
                 var b3 = new ReadOnlySpan<byte>(&r3, cb);
+                
                 if (!b1.SequenceEqual(b2) || !b1.SequenceEqual(b3) || !b2.SequenceEqual(b3))
-                {
                     throw new VmmException("Memory Read Failed!");
-                }
+
                 result = r1;
             }
             catch (VmmException)
@@ -531,7 +653,6 @@ namespace eft_dma_shared.Common.DMA
                 ? Encoding.UTF8.GetString(buffer.Slice(0, nullIndex))
                 : Encoding.UTF8.GetString(buffer);
         }
-
         /// <summary>
         /// Read UnityEngineString structure
         /// </summary>
@@ -550,6 +671,77 @@ namespace eft_dma_shared.Common.DMA
                 : Encoding.Unicode.GetString(buffer);
         }
 
+        /// <summary>
+        /// Searches for a pattern signature in memory within the specified address range.
+        /// </summary>
+        /// <param name="signature">Pattern signature in the format "AA BB ?? DD" where ?? represents a wildcard.</param>
+        /// <param name="rangeStart">Start address of the search range.</param>
+        /// <param name="rangeEnd">End address of the search range.</param>
+        /// <param name="process">The process to read memory of.</param>
+        /// <returns>Address where the pattern was found, or 0 if not found.</returns>
+        public ulong FindSignature(string signature, ulong rangeStart, ulong rangeEnd, VmmProcess process)
+        {
+            if (string.IsNullOrEmpty(signature) || rangeStart >= rangeEnd)
+                return 0;
+
+            try
+            {
+                // Read the memory block to search within
+                byte[] buffer = process.MemRead(rangeStart, (uint)(rangeEnd - rangeStart), Vmm.FLAG_NOCACHE);
+
+                if (buffer.Length == 0)
+                    return 0;
+
+                string pat = signature;
+                ulong firstMatch = 0;
+
+                for (ulong i = 0; i < (ulong)buffer.Length; i++)
+                {
+                    if (pat[0] == '?' || buffer[i] == GetByte(pat.Substring(0, 2)))
+                    {
+                        if (firstMatch == 0)
+                            firstMatch = rangeStart + i;
+
+                        if (pat.Length <= 2)
+                            break;
+
+                        pat = pat.Substring(pat[0] == '?' ? 2 : 3);
+                    }
+                    else
+                    {
+                        pat = signature;
+                        firstMatch = 0;
+                    }
+                }
+
+                return firstMatch;
+            }
+            catch (VmmException ex)
+            {
+                if (AntiPage.Initialized)
+                    AntiPage.Register(rangeStart, (uint)(rangeEnd - rangeStart));
+                LoneLogging.WriteLine($"[DMA] Error in FindSignature: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[DMA] Error in FindSignature: {ex.Message}");
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Converts a hex string to a byte value.
+        /// </summary>
+        private byte GetByte(string hex)
+        {
+            if (hex.Length < 2)
+                return 0;
+
+            byte value = 0;
+            byte.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out value);
+            return value;
+        }
         #endregion
 
         #region WriteMethods
@@ -646,9 +838,15 @@ namespace eft_dma_shared.Common.DMA
         {
             if (!SharedProgram.Config?.MemWritesEnabled ?? false)
                 throw new Exception("Memory Writing is Disabled!");
+
             try
             {
-                if (!_hVMM.MemWriteAs(_pid, addr, value))
+                int size = sizeof(T);
+                byte[] buffer = new byte[size];
+                fixed (byte* bufferPtr = buffer)
+                    *(T*)bufferPtr = value;
+
+                if (!Process.MemWrite(addr, buffer))
                     throw new VmmException("Memory Write Failed!");
             }
             catch (VmmException)
@@ -670,9 +868,15 @@ namespace eft_dma_shared.Common.DMA
         {
             if (!SharedProgram.Config?.MemWritesEnabled ?? false)
                 throw new Exception("Memory Writing is Disabled!");
+
             try
             {
-                if (!_hVMM.MemWriteAs(_pid, addr, ref value))
+                int size = sizeof(T);
+                byte[] buffer = new byte[size];
+                fixed (byte* bufferPtr = buffer)
+                    *(T*)bufferPtr = value;
+
+                if (!Process.MemWrite(addr, buffer))
                     throw new VmmException("Memory Write Failed!");
             }
             catch (VmmException)
@@ -695,7 +899,7 @@ namespace eft_dma_shared.Common.DMA
                 throw new Exception("Memory Writing is Disabled!");
             try
             {
-                if (!_hVMM.MemWriteSpan(_pid, addr, buffer))
+                if (!Process.MemWriteSpan(addr, buffer))
                     throw new VmmException("Memory Write Failed!");
             }
             catch (VmmException)
@@ -757,7 +961,7 @@ namespace eft_dma_shared.Common.DMA
         /// <returns></returns>
         public ulong GetExport(string module, string name)
         {
-            var export = _hVMM.ProcessGetProcAddress(_pid, module, name);
+            var export = Process.GetProcAddress(module, name);
             export.ThrowIfInvalidVirtualAddress();
             return export;
         }
@@ -773,10 +977,9 @@ namespace eft_dma_shared.Common.DMA
         /// <param name="flags"></param>
         /// <param name="pid"></param>
         /// <returns></returns>
-        public VmmScatter GetScatter(uint flags, out uint pid)
+        public VmmScatterMemory GetScatter(uint flags)
         {
-            pid = _pid;
-            var handle = _hVMM.Scatter_Initialize(pid, flags);
+            var handle = Process.Scatter_Initialize(flags);
             ArgumentNullException.ThrowIfNull(handle, nameof(handle));
             return handle;
         }

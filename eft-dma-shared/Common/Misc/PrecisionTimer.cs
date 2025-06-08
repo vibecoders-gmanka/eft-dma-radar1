@@ -8,8 +8,22 @@ namespace eft_dma_shared.Common.Misc
     public sealed class PrecisionTimer : IDisposable
     {
         private readonly WaitTimer _timer = new();
-        private readonly TimeSpan _interval;
+        private TimeSpan _interval;
         private volatile bool _isRunning = false;
+        private volatile bool _intervalChanged = false;
+
+        /// <summary>
+        /// Gets or sets the timer interval.
+        /// </summary>
+        public TimeSpan Interval
+        {
+            get => _interval;
+            set
+            {
+                _interval = value;
+                _intervalChanged = true;
+            }
+        }
 
         /// <summary>
         /// Callback to execute when timer fires.
@@ -55,6 +69,8 @@ namespace eft_dma_shared.Common.Misc
             {
                 try
                 {
+                    _intervalChanged = false;
+
                     if (_interval <= TimeSpan.Zero) // Busy wait
                     {
                         if (X86Base.IsSupported)
@@ -64,7 +80,8 @@ namespace eft_dma_shared.Common.Misc
                     }
                     else
                         _timer.AutoWait(_interval);
-                    if (_isRunning)
+
+                    if (_isRunning && !_intervalChanged)
                         Elapsed?.Invoke(this, EventArgs.Empty);
                 }
                 catch { }

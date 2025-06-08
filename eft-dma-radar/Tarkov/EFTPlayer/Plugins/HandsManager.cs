@@ -1,6 +1,9 @@
 ﻿using eft_dma_radar.Tarkov.Loot;
+using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Unity.Collections;
+using System.Collections.Frozen;
+using static eft_dma_radar.Tarkov.EFTPlayer.Plugins.FirearmManager;
 
 namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
 {
@@ -9,7 +12,6 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
         private readonly Player _parent;
 
         private string _ammo;
-        private string _thermal;
         private LootItem _cachedItem;
         private ulong _cached = 0x0;
         /// <summary>
@@ -20,13 +22,21 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
         {
             get
             {
-                string at = $"{_ammo} {_thermal}".Trim();
                 var item = _cachedItem?.ShortName;
-                if (item is null) return "--";
-                if (at != string.Empty)
-                    return $"{item} ({at})";
-                else
-                    return item;
+                if (item is null)
+                    return "--";
+
+                return item;
+            }
+        }
+
+        public string CurrentAmmo => _ammo;
+
+        public string CurrentItemId
+        {
+            get
+            {
+                return _cachedItem?.ID ?? "null";
             }
         }
 
@@ -34,6 +44,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
         {
             _parent = player;
         }
+
+        public float ZoomLevel { get; set; }
 
         /// <summary>
         /// Check if item in player's hands has changed.
@@ -43,31 +55,19 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
             try
             {
                 var handsController = Memory.ReadPtr(_parent.HandsControllerAddr); // or FirearmController
-                var itemBase = Memory.ReadPtr(handsController +
-                    (_parent is ClientPlayer ?
-                    Offsets.ItemHandsController.Item : Offsets.ObservedHandsController.ItemInHands));
+                var itemBase = Memory.ReadPtr(handsController + (_parent is ClientPlayer ? Offsets.ItemHandsController.Item : Offsets.ObservedHandsController.ItemInHands));
+
                 if (itemBase != _cached)
                 {
                     _cachedItem = null;
                     _ammo = null;
-                    _thermal = null;
+
                     var itemTemplate = Memory.ReadPtr(itemBase + Offsets.LootItem.Template);
                     var itemIDPtr = Memory.ReadValue<Types.MongoID>(itemTemplate + Offsets.ItemTemplate._id);
                     var itemID = Memory.ReadUnityString(itemIDPtr.StringID);
                     if (EftDataManager.AllItems.TryGetValue(itemID, out var heldItem)) // Item exists in DB
                     {
                         _cachedItem = new LootItem(heldItem);
-                        if (heldItem?.IsWeapon ?? false)
-                        {
-                            bool hasThermal = _parent.Gear?.Loot?.Any(x =>
-                                x.ID.Equals("5a1eaa87fcdbcb001865f75e", StringComparison.OrdinalIgnoreCase) || // REAP-IR
-                                x.ID.Equals("5d1b5e94d7ad1a2b865a96b0", StringComparison.OrdinalIgnoreCase) || // FLIR
-                                x.ID.Equals("6478641c19d732620e045e17", StringComparison.OrdinalIgnoreCase) || // ECHO
-                                x.ID.Equals("63fc44e2429a8a166c7f61e6", StringComparison.OrdinalIgnoreCase))   // ZEUS
-                                ?? false;
-                            _thermal = hasThermal ?
-                                "Thermal" : null;
-                        }
                     }
                     else // Item doesn't exist in DB , use name from game memory
                     {
@@ -75,10 +75,24 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                         var itemName = Memory.ReadUnityString(itemNamePtr)?.Trim();
                         if (string.IsNullOrEmpty(itemName))
                             itemName = "Item";
+
+                        if (itemName.Contains("nsv_utes"))
+                        {
+                            itemName = "NSV Utyos";
+                        }
+                        else if (itemName.Contains("ags30_30"))
+                        {
+                            itemName = "AGS-30";
+                            _ammo = "VOG-30";
+                        }
+                        else if (itemName.Contains("izhmash_rpk16"))
+                            itemName = "RPK-16";
+
                         _cachedItem = new("NULL", itemName);
                     }
                     _cached = itemBase;
                 }
+
                 if (_cachedItem?.IsWeapon ?? false)
                 {
                     try
@@ -89,10 +103,19 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
                         var ammoTemplate = Memory.ReadPtr(slotItem + Offsets.LootItem.Template);
                         var ammoIDPtr = Memory.ReadValue<Types.MongoID>(ammoTemplate + Offsets.ItemTemplate._id);
                         var ammoID = Memory.ReadUnityString(ammoIDPtr.StringID);
+
                         if (EftDataManager.AllItems.TryGetValue(ammoID, out var ammo))
                             _ammo = ammo?.ShortName;
                     }
-                    catch { }
+                    catch // gun doesnt have a chamber
+                    {
+                        var ammoTemplate_ = MagazineManager.GetAmmoTemplateFromWeapon(itemBase);
+                        var ammoIdPtr = Memory.ReadValue<Types.MongoID>(ammoTemplate_ + Offsets.ItemTemplate._id);
+                        var ammoId = Memory.ReadUnityString(ammoIdPtr.StringID);
+
+                        if (EftDataManager.AllItems.TryGetValue(ammoId, out var ammo))
+                            _ammo = ammo?.ShortName;
+                    }
                 }
             }
             catch

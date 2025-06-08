@@ -1,4 +1,5 @@
-﻿using VmmFrost;
+﻿using System.Runtime.InteropServices;
+using Vmmsharp;
 
 namespace eft_dma_shared.Common.DMA.ScatterAPI
 {
@@ -9,7 +10,7 @@ namespace eft_dma_shared.Common.DMA.ScatterAPI
     public sealed class ScatterWriteHandle : IDisposable
     {
         private readonly uint _pid;
-        private readonly VmmScatter _handle;
+        private readonly VmmScatterMemory _handle;
         private int _count = 0;
         /// <summary>
         /// Callbacks executed on completion.
@@ -19,7 +20,7 @@ namespace eft_dma_shared.Common.DMA.ScatterAPI
 
         public ScatterWriteHandle()
         {
-            _handle = Memory.GetScatter(Vmm.FLAG_NOCACHE, out _pid);
+            _handle = Memory.GetScatter(Vmm.FLAG_NOCACHE);
         }
 
         /// <summary>
@@ -32,8 +33,15 @@ namespace eft_dma_shared.Common.DMA.ScatterAPI
         public void AddBufferEntry<T>(ulong va, Span<T> buffer)
             where T : unmanaged
         {
-            if (!_handle.PrepareWriteSpan(va, buffer))
+            int sizeInBytes = buffer.Length * Marshal.SizeOf<T>();
+            byte[] byteArray = new byte[sizeInBytes];
+
+            Span<byte> byteSpan = MemoryMarshal.AsBytes(buffer);
+            byteSpan.CopyTo(byteArray);
+
+            if (!_handle.PrepareWrite(va, byteArray))
                 throw new Exception("Failed to prepare write entry.");
+
             Interlocked.Increment(ref _count);
         }
 
@@ -47,7 +55,7 @@ namespace eft_dma_shared.Common.DMA.ScatterAPI
         public void AddValueEntry<T>(ulong va, T value)
             where T : unmanaged
         {
-            if (!_handle.PrepareWriteAs(va, value))
+            if (!_handle.PrepareWriteStruct(va, value))
                 throw new Exception("Failed to prepare write entry.");
             Interlocked.Increment(ref _count);
         }
@@ -62,7 +70,7 @@ namespace eft_dma_shared.Common.DMA.ScatterAPI
         public void AddValueEntry<T>(ulong va, ref T value)
             where T : unmanaged
         {
-            if (!_handle.PrepareWriteAs(va, ref value))
+            if (!_handle.PrepareWriteStruct(va, value))
                 throw new Exception("Failed to prepare write entry.");
             Interlocked.Increment(ref _count);
         }
@@ -93,7 +101,7 @@ namespace eft_dma_shared.Common.DMA.ScatterAPI
         {
             _count = default;
             Callbacks = default;
-            if (!_handle.Clear(_pid, Vmm.FLAG_NOCACHE))
+            if (!_handle.Clear(Vmm.FLAG_NOCACHE))
                 throw new Exception("Failed to clear handle!");
         }
 

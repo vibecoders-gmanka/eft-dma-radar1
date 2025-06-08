@@ -20,6 +20,10 @@ namespace eft_dma_radar.Tarkov.GameWorld
         /// </summary>
         public override ulong OpticCamera { get; }
 
+        public static ulong ThermalVision;
+        public static ulong NightVision;
+        public static ulong FPSCamera_;
+
         public CameraManager() : base()
         {
             var ocmContainer = Memory.ReadPtr(_opticCameraManagerField + Offsets.OpticCameraManagerContainer.Instance, false);
@@ -94,9 +98,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
         {
             IsADS = localPlayer?.CheckIfADS() ?? false;
             IsScoped = IsADS && CheckIfScoped(localPlayer);
-            ulong vmAddr = IsADS && IsScoped
-                ? OpticCamera + UnityOffsets.Camera.ViewMatrix
-                : FPSCamera + UnityOffsets.Camera.ViewMatrix;
+            ulong vmAddr = IsADS && IsScoped ? OpticCamera + UnityOffsets.Camera.ViewMatrix : FPSCamera + UnityOffsets.Camera.ViewMatrix;
             index.AddEntry<Matrix4x4>(0, vmAddr); // View Matrix
             index.Callbacks += x1 =>
             {
@@ -104,51 +106,72 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 if (!Unsafe.IsNullRef(ref vm))
                     _viewMatrix.Update(ref vm);
             };
+
             if (IsScoped)
             {
-                index.AddEntry<float>(1, FPSCamera + UnityOffsets.Camera.FOV); // FOV
-                index.AddEntry<float>(2, FPSCamera + UnityOffsets.Camera.AspectRatio); // Aspect
+                var fovAddr = FPSCamera + UnityOffsets.Camera.FOV;
+                var aspectAddr = FPSCamera + UnityOffsets.Camera.AspectRatio;
+
+                index.AddEntry<float>(1, fovAddr); // FOV
+                index.AddEntry<float>(2, aspectAddr); // Aspect
+
                 index.Callbacks += x2 =>
                 {
-                    if (x2.TryGetResult<float>(1, out var fov))
+                    bool fovRead = x2.TryGetResult<float>(1, out var fov);
+                    bool aspectRead = x2.TryGetResult<float>(2, out var aspect);
+
+                    if (fovRead)
+                    {
                         _fov = fov;
-                    if (x2.TryGetResult<float>(2, out var aspect))
+                        //LoneLogging.WriteLine($"[Scoped] FOV Read Success: {_fov} from 0x{fovAddr:X}");
+                    }
+                    else
+                    {
+                        LoneLogging.WriteLine($"[Scoped] FOV Read Failed at 0x{fovAddr:X}");
+                    }
+
+                    if (aspectRead)
+                    {
                         _aspect = aspect;
+                        //LoneLogging.WriteLine($"[Scoped] Aspect Read Success: {_aspect} from 0x{aspectAddr:X}");
+                    }
+                    else
+                    {
+                        LoneLogging.WriteLine($"[Scoped] Aspect Read Failed at 0x{aspectAddr:X}");
+                    }
                 };
             }
+
         }
 
         [StructLayout(LayoutKind.Explicit, Pack = 1)]
         private readonly ref struct SightComponent // (Type: EFT.InventoryLogic.SightComponent)
-
         {
             [FieldOffset((int)Offsets.SightComponent._template)] private readonly ulong pSightInterface;
-
             [FieldOffset((int)Offsets.SightComponent.ScopesSelectedModes)] private readonly ulong pScopeSelectedModes;
-
             [FieldOffset((int)Offsets.SightComponent.SelectedScope)] private readonly int SelectedScope;
-
             [FieldOffset((int)Offsets.SightComponent.ScopeZoomValue)] public readonly float ScopeZoomValue;
 
             public readonly float GetZoomLevel()
             {
                 using var zoomArray = SightInterface.Zooms;
+                
                 if (SelectedScope >= zoomArray.Count || SelectedScope is < 0 or > 10)
                     return -1.0f;
+
                 using var selectedScopeModes = MemArray<int>.Get(pScopeSelectedModes, false);
-                int selectedScopeMode = SelectedScope >= selectedScopeModes.Count ?
-                    0 : selectedScopeModes[SelectedScope];
+                int selectedScopeMode = SelectedScope >= selectedScopeModes.Count ? 0 : selectedScopeModes[SelectedScope];
                 ulong zoomAddr = zoomArray[SelectedScope] + MemArray<float>.ArrBaseOffset + (uint)selectedScopeMode * 0x4;
 
                 float zoomLevel = Memory.ReadValue<float>(zoomAddr, false);
+
                 if (zoomLevel.IsNormalOrZero() && zoomLevel is >= 0f and < 100f)
                     return zoomLevel;
 
                 return -1.0f;
             }
 
-            public readonly SightInterface SightInterface =>
-                Memory.ReadValue<SightInterface>(pSightInterface);
+            public readonly SightInterface SightInterface => Memory.ReadValue<SightInterface>(pSightInterface);
         }
 
         [StructLayout(LayoutKind.Explicit, Pack = 1)]

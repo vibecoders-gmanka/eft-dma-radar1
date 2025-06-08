@@ -1,7 +1,9 @@
-﻿using eft_dma_shared.Common.DMA.ScatterAPI;
-using eft_dma_shared.Common.DMA;
+﻿using eft_dma_shared.Common.DMA;
+using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Unity.Collections;
+using eft_dma_shared.Common.Unity.LowLevel.Hooks;
+using eft_dma_shared.Common.Unity.LowLevel.Types;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -45,13 +47,15 @@ namespace eft_dma_shared.Common.Unity
             {
                 LoneLogging.WriteLine("Initializing Mono...");
                 var singletons = Singleton.FindMany("GameWorld", "LevelSettings");
+                
                 if (!singletons[0].IsValidVirtualAddress())
                     throw new ArgumentOutOfRangeException("GameWorld");
+                
                 GameWorldField = singletons[0];
+
                 if (singletons[1].IsValidVirtualAddress())
-                {
                     _levelSettingsField = singletons[1];
-                }
+
                 FunctionsWorker.Refresh(); // Signal Functions Worker
                 LoneLogging.WriteLine("Mono Init [OK]");
             }
@@ -61,6 +65,7 @@ namespace eft_dma_shared.Common.Unity
                 throw new Exception("Mono Init [FAIL]", ex);
             }
         }
+
 
         /// <summary>
         /// Initialize Mono at Game Startup.
@@ -225,7 +230,7 @@ namespace eft_dma_shared.Common.Unity
         #endregion
 
         #region Mono Types
-        private static class Singleton
+        public static class Singleton
         {
             [StructLayout(LayoutKind.Explicit, Pack = 1)]
             private readonly struct SingletonHashTable
@@ -353,6 +358,26 @@ namespace eft_dma_shared.Common.Unity
 
                 return results;
             }
+
+            public static ulong FindByToken(uint token)
+            {
+                try
+                {
+                    var rootDomain = MonoRootDomain.Get();
+                    var domainAssembly = MonoAssembly.Open(rootDomain.Value, "Assembly-CSharp");
+                    var monoImage = domainAssembly.GetMonoImage();
+
+                    int typeID = (int)token;
+                    var monoClass = monoImage.Value.Get(monoImage, typeID);
+                    string className = monoClass.Value.GetName();
+
+                    return Singleton.FindOne(className);
+                }
+                catch
+                {
+                    return 0x0;
+                }
+            }
         }
 
         [StructLayout(LayoutKind.Explicit, Pack = 1)]
@@ -448,6 +473,7 @@ namespace eft_dma_shared.Common.Unity
         [StructLayout(LayoutKind.Explicit, Pack = 1)]
         public readonly struct MonoClass
         {
+            public static ulong GetSingleton(string className) => Singleton.FindOne(className);
             [FieldOffset(0x1B)]
             public readonly byte ClassKind; // class_kind
             [FieldOffset(0x20)]
@@ -637,7 +663,16 @@ namespace eft_dma_shared.Common.Unity
                 return staticFieldData;
             }
 
-            public static MonoClass Find(string assemblyName, string className, out ulong addressOf)
+            public ulong GetStaticFieldDataPtr()
+            {
+                var vTable = this.GetVTable(MonoRootDomain.Get());
+                ArgumentOutOfRangeException.ThrowIfZero((ulong)vTable, nameof(vTable));
+                var staticFieldData = vTable.Value.GetStaticFieldData(vTable);
+                ArgumentOutOfRangeException.ThrowIfZero(staticFieldData, nameof(staticFieldData));
+                return staticFieldData;
+            }
+
+            public static MonoClass Find(string assemblyName, string className, out ulong addressOf, int subclass = -1)
             {
                 var rootDomain = MonoRootDomain.Get();
                 ArgumentOutOfRangeException.ThrowIfZero((ulong)rootDomain, nameof(rootDomain));
@@ -648,38 +683,81 @@ namespace eft_dma_shared.Common.Unity
                 ArgumentOutOfRangeException.ThrowIfZero((ulong)tableInfo, nameof(tableInfo));
                 int rowCount = tableInfo.Value.GetRows();
                 ArgumentOutOfRangeException.ThrowIfGreaterThan(rowCount, 25000, nameof(rowCount));
+
+                int currSubclassOffset = 0;
                 bool mainClassFound = false;
+
                 bool findSubClass = className.Contains('+');
+                bool findSubclassAlt = subclass > -1;
+
+                List<string> subclassParts = new();
+                if (findSubClass)
+                    subclassParts = className.Split('+').ToList();
+
+                if (findSubClass && subclassParts.Count < 2)
+                    LoneLogging.WriteLine($"[MONO] -> FindClass(): Invalid subclass markup! The definition must have the main class name and at least one subclass.");
+
                 for (int i = 0; i < rowCount; i++)
                 {
                     var ptr = MonoRead<MonoClass>(MonoRead<MonoHashTable>(monoImage + 0x4D0).Value.Lookup((ulong)(0x02000000 | i + 1)));
                     if (ptr == 0x0)
                         continue;
+
                     var name = ptr.Value.GetName();
                     var ns = ptr.Value.GetNamespaceName();
+
                     if (ns.Length != 0)
                         name = ns + "." + name;
-                    if (mainClassFound && findSubClass)
+
+                    if (name.Contains('`'))
+                        name = name.Split('`')[0];
+
+                    if (!findSubClass && !findSubclassAlt && name == className)
                     {
-                        if (name.Contains(className.Split('+')[1]))
-                        {
-                            ArgumentOutOfRangeException.ThrowIfZero((ulong)ptr, nameof(ptr));
-                            addressOf = ptr;
-                            return ptr.Value;
-                        }
-                    }
-                    else if (findSubClass)
-                    {
-                        if (name == className.Split('+')[0])
-                            mainClassFound = true;
-                    }
-                    else if (!findSubClass && name == className)
-                    {
-                        ArgumentOutOfRangeException.ThrowIfZero((ulong)ptr, nameof(ptr));
                         addressOf = ptr;
                         return ptr.Value;
                     }
+
+                    if (mainClassFound)
+                    {
+                        if (findSubclassAlt)
+                        {
+                            if (currSubclassOffset == subclass)
+                            {
+                                addressOf = ptr;
+                                return ptr.Value;
+                            }
+                        }
+                        else if (findSubClass)
+                        {
+                            if (name.Contains(subclassParts[0]))
+                            {
+                                if (subclassParts.Count == 1)
+                                {
+                                    addressOf = ptr;
+                                    return ptr.Value;
+                                }
+                                else
+                                {
+                                    subclassParts.RemoveAt(0);
+                                }
+                            }
+                        }
+
+                        currSubclassOffset++;
+                    }
+                    else if (findSubClass && name == subclassParts[0])
+                    {
+                        mainClassFound = true;
+                        subclassParts.RemoveAt(0);
+                    }
+                    else if (findSubclassAlt && name == className)
+                    {
+                        mainClassFound = true;
+                    }
                 }
+
+                addressOf = 0;
                 throw new Exception("Cannot find class " + className);
             }
         }

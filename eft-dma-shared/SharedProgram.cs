@@ -4,6 +4,8 @@ using eft_dma_shared.Common.Misc.Config;
 using eft_dma_shared.Common.Misc;
 using System.Net.Http.Headers;
 using System.Net;
+using System.IO;
+using System.Net.Http;
 
 namespace eft_dma_shared
 {
@@ -112,5 +114,11 @@ namespace eft_dma_shared
         /// </summary>
         private static void CurrentDomain_ProcessExit(object sender, EventArgs e) =>
             Config.Save();
+
+        public static void UpdateConfig(IConfig newConfig)
+        {
+            ArgumentNullException.ThrowIfNull(newConfig, nameof(newConfig));
+            Config = newConfig;
+        }
     }
 }

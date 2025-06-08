@@ -10,7 +10,6 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites.Patches
     {
         private const byte o1 = (byte)Offsets.PlayerSpawnInfo.Side;
         private const byte o2 = (byte)Offsets.InfoContainer.Side;
-
         private const byte p1 = (byte)Offsets.PlayerSpawnInfo.WildSpawnType;
 
         public override bool Enabled
@@ -41,10 +40,13 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites.Patches
         {
             if (!NativeHook.Initialized)
                 throw new Exception("NativeHook not initialized!");
+
             var @class = MonoLib.MonoClass.Find("Assembly-CSharp", ClassNames.FixWildSpawnType.ClassName, out ulong classAddr);
             classAddr.ThrowIfInvalidVirtualAddress();
+
             if (NativeMethods.CompileClass(classAddr) == 0)
                 throw new Exception("Failed to compile class");
+
             if (@class.TryFindJittedMethod(ClassNames.FixWildSpawnType.MethodName, out ulong method))
             {
                 return method;

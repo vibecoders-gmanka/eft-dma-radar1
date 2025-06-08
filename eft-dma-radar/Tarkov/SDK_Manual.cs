@@ -18,6 +18,7 @@ namespace SDK
                 return new uint[] { _playerBody, Offsets.PlayerBody.SkeletonRootJoint, Offsets.DizSkinningSkeleton._values, MemList<byte>.ArrOffset, MemList<byte>.ArrStartOffset + (uint)index * 0x8, 0x10 };
             }
         }
+
         public readonly struct BodyAnimator // \uE670 : IAnimator, IAnimatorNotificator
         {
             public const uint UnityAnimator = 0x10; // Type: UnityEngine.Animator
@@ -41,6 +42,17 @@ namespace SDK
             {
                 return new uint[] { PlayerBody, Offsets.PlayerBody.SkeletonRootJoint, Offsets.DizSkinningSkeleton._values, MemList<byte>.ArrOffset, MemList<byte>.ArrStartOffset + (uint)index * 0x8, 0x10 };
             }
+        }
+
+        public readonly partial struct HealthSystem
+        {
+            public const uint Energy = 0x38; // EFT.HealthSystem.HealthValue
+            public const uint Hydration = 0x40; // EFT.HealthSystem.HealthValue
+        }
+
+        public readonly partial struct HealthValue
+        {
+            public const uint Value = 0x10; // Value : EFT.HealthSystem.ValueStruct
         }
     }
 
@@ -111,6 +123,15 @@ namespace SDK
             [Description("BigPipe")]
             BigPipe = 65536
         }
+
+        public enum InventoryBlurDimensions
+        {
+            _128 = 128,
+            _256 = 256,
+            _512 = 512,
+            _1024 = 1024,
+            _2048 = 2048,
+        }
     }
 
     public readonly struct Types
@@ -129,6 +150,26 @@ namespace SDK
             private readonly ulong _stringID;
 
             public readonly ulong StringID => _stringID;
+        }
+
+        /// <summary>
+        /// EFT.HealthSystem.Value Struct
+        /// </summary>
+        [StructLayout(LayoutKind.Explicit, Pack = 8)]
+        public readonly struct HealthSystem
+        {
+            [FieldOffset(0x0)]
+            private readonly float _current;
+            [FieldOffset(0x04)]
+            private readonly float _maximum;
+            [FieldOffset(0x08)]
+            private readonly float _minimum;
+            [FieldOffset(0x0C)]
+            private readonly float _overDamageReceivedMultiplier;
+            [FieldOffset(0x10)]
+            private readonly float _environmentDamageMultiplier;
+
+            public readonly float Current => _current;
         }
 
         /// <summary>

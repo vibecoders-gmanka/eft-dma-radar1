@@ -1,6 +1,6 @@
 ﻿using eft_dma_shared.Common.Misc;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
+using SkiaSharp.Views.WPF;
 using Svg.Skia;
 using System.IO.Compression;
 using System.Numerics;
@@ -87,23 +87,26 @@ namespace eft_dma_shared.Common.Maps
         /// <summary>
         /// Provides miscellaneous map parameters used throughout the entire render.
         /// </summary>
-        public LoneMapParams GetParameters(SKGLControl control, int zoom, ref Vector2 localPlayerMapPos)
+        public LoneMapParams GetParameters(SKGLElement element, int zoom, ref Vector2 localPlayerMapPos)
         {
             var zoomWidth = _layers[0].Image.Width * (.01f * zoom);
             var zoomHeight = _layers[0].Image.Height * (.01f * zoom);
+
+            // Get the size of the element using the CanvasSize property
+            var canvasSize = element.CanvasSize;
 
             var bounds = new SKRect(localPlayerMapPos.X - zoomWidth / 2,
                     localPlayerMapPos.Y - zoomHeight / 2,
                     localPlayerMapPos.X + zoomWidth / 2,
                     localPlayerMapPos.Y + zoomHeight / 2)
-                .AspectFill(control.CanvasSize);
+                .AspectFill(canvasSize);
 
             return new LoneMapParams
             {
                 Map = Config,
                 Bounds = bounds,
-                XScale = control.Width / bounds.Width, // Set scale for this frame
-                YScale = control.Height / bounds.Height // Set scale for this frame
+                XScale = canvasSize.Width / bounds.Width, // Set scale for this frame
+                YScale = canvasSize.Height / bounds.Height // Set scale for this frame
             };
         }
 

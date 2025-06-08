@@ -1,4 +1,5 @@
 ﻿using SkiaSharp;
+using System.IO;
 using System.Reflection;
 
 namespace eft_dma_shared.Common.Misc
@@ -27,22 +28,22 @@ namespace eft_dma_shared.Common.Misc
             try
             {
                 byte[] fontFamilyRegular, fontFamilyBold, fontFamilyItalic, fontFamilyMedium;
-                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft-dma-shared.NeoSansStdRegular.otf"))
+                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft_dma_shared.NeoSansStdRegular.otf"))
                 {
                     fontFamilyRegular = new byte[stream!.Length];
                     stream.ReadExactly(fontFamilyRegular);
                 }
-                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft-dma-shared.NeoSansStdBold.otf"))
+                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft_dma_shared.NeoSansStdBold.otf"))
                 {
                     fontFamilyBold = new byte[stream!.Length];
                     stream.ReadExactly(fontFamilyBold);
                 }
-                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft-dma-shared.NeoSansStdItalic.otf"))
+                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft_dma_shared.NeoSansStdItalic.otf"))
                 {
                     fontFamilyItalic = new byte[stream!.Length];
                     stream.ReadExactly(fontFamilyItalic);
                 }
-                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft-dma-shared.NeoSansStdMedium.otf"))
+                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("eft_dma_shared.NeoSansStdMedium.otf"))
                 {
                     fontFamilyMedium = new byte[stream!.Length];
                     stream.ReadExactly(fontFamilyMedium);

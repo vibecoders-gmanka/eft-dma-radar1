@@ -8,58 +8,89 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 {
     public sealed class FullBright : MemWriteFeature<FullBright>
     {
-        private bool _set;
+        private bool _lastEnabledState;
+        private float _lastBrightness;
+        private ulong _cachedLevelSettings;
 
         public override bool Enabled
         {
-            get => MemWrites.Config.FullBright;
-            set => MemWrites.Config.FullBright = value;
+            get => MemWrites.Config.FullBright.Enabled;
+            set => MemWrites.Config.FullBright.Enabled = value;
         }
 
         protected override TimeSpan Delay => TimeSpan.FromMilliseconds(200);
-
 
         public override void TryApply(ScatterWriteHandle writes)
         {
             try
             {
-                if (Enabled && !_set)
+                var configBrightness = MemWrites.Config.FullBright.Intensity;
+                var stateChanged = Enabled != _lastEnabledState;
+                var brightnessChanged = Math.Abs(configBrightness - _lastBrightness) > 0.001f;
+
+                if ((Enabled && (stateChanged || brightnessChanged)) || (!Enabled && stateChanged))
                 {
-                    var levelSettings = Memory.ReadPtr(MonoLib.LevelSettingsField);
+                    var levelSettings = GetLevelSettings();
+                    if (!levelSettings.IsValidVirtualAddress())
+                        return;
 
-                    writes.AddValueEntry(levelSettings + Offsets.LevelSettings.AmbientMode, (int)AmbientMode.Trilight);
+                    ApplyFullBrightSettings(writes, levelSettings, Enabled, configBrightness);
 
-                    const float brightness = 0.35f; // This is a good level for all maps
-                    var equatorColor = new UnityColor(brightness, brightness, brightness);
-                    var groundColor = new UnityColor(0f, 0f, 0f);
-                    writes.AddValueEntry(levelSettings + Offsets.LevelSettings.EquatorColor, ref equatorColor);
-                    writes.AddValueEntry(levelSettings + Offsets.LevelSettings.GroundColor, ref groundColor);
                     writes.Callbacks += () =>
                     {
-                        _set = true;
-                        LoneLogging.WriteLine("FullBright [On]");
-                    };
-                }
-                else if (!Enabled && _set)
-                {
-                    var levelSettings = Memory.ReadPtr(MonoLib.LevelSettingsField);
-                    writes.AddValueEntry(levelSettings + Offsets.LevelSettings.AmbientMode, (int)AmbientMode.Flat);
-                    writes.Callbacks += () =>
-                    {
-                        _set = false;
-                        LoneLogging.WriteLine("FullBright [Off]");
+                        _lastEnabledState = Enabled;
+                        _lastBrightness = configBrightness;
+
+                        if (Enabled)
+                            LoneLogging.WriteLine($"[FullBright] Enabled (Intensity: {configBrightness:F2})");
+                        else
+                            LoneLogging.WriteLine("[FullBright] Disabled");
                     };
                 }
             }
             catch (Exception ex)
             {
-                LoneLogging.WriteLine($"ERROR configuring FullBright: {ex}");
+                LoneLogging.WriteLine($"[FullBright]: {ex}");
+                _cachedLevelSettings = default;
+            }
+        }
+
+        private ulong GetLevelSettings()
+        {
+            if (_cachedLevelSettings.IsValidVirtualAddress())
+                return _cachedLevelSettings;
+
+            var levelSettings = Memory.ReadPtr(MonoLib.LevelSettingsField);
+            if (!levelSettings.IsValidVirtualAddress())
+                return 0x0;
+
+            _cachedLevelSettings = levelSettings;
+            return levelSettings;
+        }
+
+        private static void ApplyFullBrightSettings(ScatterWriteHandle writes, ulong levelSettings, bool enabled, float brightness)
+        {
+            if (enabled)
+            {
+                writes.AddValueEntry(levelSettings + Offsets.LevelSettings.AmbientMode, (int)AmbientMode.Trilight);
+
+                var equatorColor = new UnityColor(brightness, brightness, brightness);
+                var groundColor = new UnityColor(0f, 0f, 0f);
+
+                writes.AddValueEntry(levelSettings + Offsets.LevelSettings.EquatorColor, ref equatorColor);
+                writes.AddValueEntry(levelSettings + Offsets.LevelSettings.GroundColor, ref groundColor);
+            }
+            else
+            {
+                writes.AddValueEntry(levelSettings + Offsets.LevelSettings.AmbientMode, (int)AmbientMode.Flat);
             }
         }
 
         public override void OnRaidStart()
         {
-            _set = default;
+            _lastEnabledState = default;
+            _lastBrightness = default;
+            _cachedLevelSettings = default;
         }
 
         private enum AmbientMode : int

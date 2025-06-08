@@ -3,6 +3,7 @@ using eft_dma_shared.Common.Features;
 using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Players;
 using eft_dma_shared.Common.Unity;
+using static SDK.Enums;
 
 namespace eft_dma_radar.Tarkov.EFTPlayer
 {
@@ -128,7 +129,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             {
                 IsHuman = true;
                 Name = "PMC";
-                Type = PlayerType.PMC;
+                //Type = PlayerType.PMC;
+                Type = (PlayerSide == EPlayerSide.Usec) ? PlayerType.USEC : PlayerType.BEAR;
             }
             else
                 throw new NotImplementedException(nameof(PlayerSide));

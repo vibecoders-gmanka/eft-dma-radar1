@@ -10,9 +10,17 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 {
     public sealed class InfStamina : MemWriteFeature<InfStamina>
     {
-        private const byte _infStamSourceStateName = (byte)Enums.EPlayerState.Sprint;
-        private const byte _infStamTargetStateName = (byte)Enums.EPlayerState.Transition;
-        private bool _bypassSet;
+        private bool _lastEnabledState;
+        private bool _bypassApplied;
+        private ulong _cachedPhysical;
+        private ulong _cachedStaminaObj;
+        private ulong _cachedOxygenObj;
+
+        private const byte INF_STAM_SOURCE_STATE_NAME = (byte)Enums.EPlayerState.Sprint;
+        private const byte INF_STAM_TARGET_STATE_NAME = (byte)Enums.EPlayerState.Transition;
+        private const float MAX_STAMINA = 100f;
+        private const float MAX_OXYGEN = 350f;
+        private const float REFILL_THRESHOLD = 0.33f; // Refill when below 33%
 
         public override bool Enabled
         {
@@ -22,98 +30,214 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 
         protected override TimeSpan Delay => TimeSpan.FromSeconds(1);
 
-
         public override void TryApply(ScatterWriteHandle writes)
         {
             try
             {
-                if (Enabled && Memory.Game is LocalGameWorld game && Memory.LocalPlayer is LocalPlayer localPlayer)
+                if (Memory.Game is not LocalGameWorld game || Memory.LocalPlayer is not LocalPlayer localPlayer)
+                    return;
+
+                var stateChanged = Enabled != _lastEnabledState;
+
+                if (!Enabled)
                 {
-                    if (!_bypassSet)
+                    if (stateChanged)
                     {
-                        ApplyFatigueBypass_V2(localPlayer);
+                        _lastEnabledState = false;
+                        LoneLogging.WriteLine("[InfStamina] Disabled");
                     }
+                    return;
+                }
 
-                    /// Apply Inf Stamina
-                    const float maxStam = 100f; // Default Max Value (may be higher w/ skills)
-                    const float maxOxy = 350f; // Default Max Value (may be higher w/ skills)
-                    var phys = Memory.ReadPtr(localPlayer + Offsets.Player.Physical);
-                    var stamObj = Memory.ReadPtr(phys + Offsets.Physical.Stamina);
-                    var currentStam = Memory.ReadValue<float>(stamObj + Offsets.PhysicalValue.Current, false);
-                    if (currentStam < 0f || currentStam > 500f)
-                        throw new ArgumentOutOfRangeException("Invalid Stam value! Possible bad read");
-                    var oxyObj = Memory.ReadPtr(phys + Offsets.Physical.Oxygen);
-                    var currentOxy = Memory.ReadValue<float>(oxyObj + Offsets.PhysicalValue.Current, false);
-                    if (currentOxy < 0f || currentOxy > 1000f)
-                        throw new ArgumentOutOfRangeException("Invalid Oxy value! Possible bad read");
-                    if (currentStam < maxStam / 3) // Refill when below 33%
-                    {
-                        writes.AddValueEntry(stamObj + Offsets.PhysicalValue.Current, maxStam);
-                        LoneLogging.WriteLine($"InfStamina -> stam:{currentStam}->{maxStam}");
-                    }
+                if (!_bypassApplied)
+                    ApplyFatigueBypass(localPlayer);
 
-                    if (currentOxy < maxOxy / 3) // Refill when below 33%
-                    {
-                        writes.AddValueEntry(oxyObj + Offsets.PhysicalValue.Current, maxOxy);
-                        LoneLogging.WriteLine($"InfStamina -> oxy:{currentOxy}->{maxOxy}");
-                    }
+                ApplyInfiniteStamina(writes, localPlayer);
+
+                if (stateChanged)
+                {
+                    _lastEnabledState = true;
+                    LoneLogging.WriteLine("[InfStamina] Enabled");
                 }
             }
             catch (Exception ex)
             {
-                LoneLogging.WriteLine($"ERROR configuring InfStamina: {ex}");
+                LoneLogging.WriteLine($"[InfStamina]: {ex}");
+                ClearCache();
             }
         }
 
-        /// <summary>
-        /// Apply Fatigue Bypass for Infinite Stamina.
-        /// </summary>
-        private void ApplyFatigueBypass_V2(LocalPlayer localPlayer)
+        private void ApplyInfiniteStamina(ScatterWriteHandle writes, LocalPlayer localPlayer)
         {
-            ulong originalStateContainer = GetOriginalStateContainer(localPlayer);
-            GetStates(localPlayer, out ulong originalState, out ulong patchState);
-            if (originalState == default)
-            {
-                _bypassSet = true;
-                LoneLogging.WriteLine("InfStamina -> Bypass ALREADY SET");
+            var (staminaObj, oxygenObj) = GetStaminaObjects(localPlayer);
+
+            if (!staminaObj.IsValidVirtualAddress() || !oxygenObj.IsValidVirtualAddress())
                 return;
+
+            var currentStamina = Memory.ReadValue<float>(staminaObj + Offsets.PhysicalValue.Current, false);
+            var currentOxygen = Memory.ReadValue<float>(oxygenObj + Offsets.PhysicalValue.Current, false);
+
+            ValidateStaminaValue(currentStamina);
+            ValidateOxygenValue(currentOxygen);
+
+            var hasWrites = false;
+
+            if (currentStamina < MAX_STAMINA * REFILL_THRESHOLD)
+            {
+                writes.AddValueEntry(staminaObj + Offsets.PhysicalValue.Current, MAX_STAMINA);
+                hasWrites = true;
+
+                writes.Callbacks += () =>
+                    LoneLogging.WriteLine($"[InfStamina] Stamina refilled: {currentStamina:F1} -> {MAX_STAMINA:F1}");
             }
-            int targetHash = Memory.ReadValueEnsure<int>(patchState + Offsets.MovementState.AnimatorStateHash);
-            Memory.WriteValueEnsure(originalStateContainer + Offsets.PlayerStateContainer.StateFullNameHash, targetHash);
-            Memory.WriteValueEnsure(originalState + Offsets.MovementState.AnimatorStateHash, targetHash);
-            Memory.WriteValueEnsure(originalState + Offsets.MovementState.Name, _infStamTargetStateName);
-            _bypassSet = true;
-            LoneLogging.WriteLine("InfStamina -> Bypass SET");
+
+            if (currentOxygen < MAX_OXYGEN * REFILL_THRESHOLD)
+            {
+                writes.AddValueEntry(oxygenObj + Offsets.PhysicalValue.Current, MAX_OXYGEN);
+                hasWrites = true;
+
+                writes.Callbacks += () =>
+                    LoneLogging.WriteLine($"[InfStamina] Oxygen refilled: {currentOxygen:F1} -> {MAX_OXYGEN:F1}");
+            }
+        }
+
+        private (ulong staminaObj, ulong oxygenObj) GetStaminaObjects(LocalPlayer localPlayer)
+        {
+            var physical = GetPhysical(localPlayer);
+            if (!physical.IsValidVirtualAddress())
+                return (0x0, 0x0);
+
+            var staminaObj = GetStaminaObject(physical);
+            var oxygenObj = GetOxygenObject(physical);
+
+            return (staminaObj, oxygenObj);
+        }
+
+        private ulong GetPhysical(LocalPlayer localPlayer)
+        {
+            if (_cachedPhysical.IsValidVirtualAddress())
+                return _cachedPhysical;
+
+            var physical = Memory.ReadPtr(localPlayer + Offsets.Player.Physical);
+            if (physical.IsValidVirtualAddress())
+                _cachedPhysical = physical;
+
+            return physical;
+        }
+
+        private ulong GetStaminaObject(ulong physical)
+        {
+            if (_cachedStaminaObj.IsValidVirtualAddress())
+                return _cachedStaminaObj;
+
+            var staminaObj = Memory.ReadPtr(physical + Offsets.Physical.Stamina);
+            if (staminaObj.IsValidVirtualAddress())
+                _cachedStaminaObj = staminaObj;
+
+            return staminaObj;
+        }
+
+        private ulong GetOxygenObject(ulong physical)
+        {
+            if (_cachedOxygenObj.IsValidVirtualAddress())
+                return _cachedOxygenObj;
+
+            var oxygenObj = Memory.ReadPtr(physical + Offsets.Physical.Oxygen);
+            if (oxygenObj.IsValidVirtualAddress())
+                _cachedOxygenObj = oxygenObj;
+
+            return oxygenObj;
+        }
+
+        private void ApplyFatigueBypass(LocalPlayer localPlayer)
+        {
+            try
+            {
+                var originalStateContainer = GetOriginalStateContainer(localPlayer);
+                GetStates(localPlayer, out var originalState, out var patchState);
+
+                if (originalState == 0x0)
+                {
+                    _bypassApplied = true;
+                    LoneLogging.WriteLine("[InfStamina] Fatigue bypass already applied");
+                    return;
+                }
+
+                if (!patchState.IsValidVirtualAddress())
+                {
+                    LoneLogging.WriteLine("[InfStamina] Failed to find patch state");
+                    return;
+                }
+
+                var targetHash = Memory.ReadValueEnsure<int>(patchState + Offsets.MovementState.AnimatorStateHash);
+                Memory.WriteValueEnsure(originalStateContainer + Offsets.PlayerStateContainer.StateFullNameHash, targetHash);
+                Memory.WriteValueEnsure(originalState + Offsets.MovementState.AnimatorStateHash, targetHash);
+                Memory.WriteValueEnsure(originalState + Offsets.MovementState.Name, INF_STAM_TARGET_STATE_NAME);
+
+                _bypassApplied = true;
+                LoneLogging.WriteLine("[InfStamina] Fatigue bypass applied successfully");
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"[InfStamina] Fatigue bypass failed: {ex}");
+            }
         }
 
         private static void GetStates(LocalPlayer localPlayer, out ulong originalState, out ulong patchState)
         {
             using var states = GetStatesDict(localPlayer);
-            originalState = states.FirstOrDefault(x => Memory.ReadValueEnsure<byte>(x.Value + Offsets.MovementState.Name) == _infStamSourceStateName).Value;
-            if (originalState == default) // Already Set
+
+            originalState = states.FirstOrDefault(x =>
+                Memory.ReadValueEnsure<byte>(x.Value + Offsets.MovementState.Name) == INF_STAM_SOURCE_STATE_NAME).Value;
+
+            if (originalState == 0x0)
             {
-                patchState = default;
+                patchState = 0x0;
                 return;
             }
-            patchState = states.First(x => Memory.ReadValueEnsure<byte>(x.Value + Offsets.MovementState.Name) == _infStamTargetStateName).Value;
-            
-            static MemDictionary<byte, ulong> GetStatesDict(LocalPlayer localPlayer)
-            {
-                var statesPtr = Memory.ReadPtr(localPlayer.MovementContext + Offsets.MovementContext._states);
-                return MemDictionary<byte, ulong>.Get(statesPtr, false);
-            }
+
+            patchState = states.First(x =>
+                Memory.ReadValueEnsure<byte>(x.Value + Offsets.MovementState.Name) == INF_STAM_TARGET_STATE_NAME).Value;
+        }
+
+        private static MemDictionary<byte, ulong> GetStatesDict(LocalPlayer localPlayer)
+        {
+            var statesPtr = Memory.ReadPtr(localPlayer.MovementContext + Offsets.MovementContext._states);
+            return MemDictionary<byte, ulong>.Get(statesPtr, false);
         }
 
         private static ulong GetOriginalStateContainer(LocalPlayer localPlayer)
         {
             var movementStatesPtr = Memory.ReadPtr(localPlayer.MovementContext + Offsets.MovementContext._movementStates);
             using var movementStates = MemArray<ulong>.Get(movementStatesPtr, false);
-            return movementStates.First(x => Memory.ReadValueEnsure<byte>(x + Offsets.PlayerStateContainer.Name) == _infStamSourceStateName);
+            return movementStates.First(x =>
+                Memory.ReadValueEnsure<byte>(x + Offsets.PlayerStateContainer.Name) == INF_STAM_SOURCE_STATE_NAME);
+        }
+
+        private static void ValidateStaminaValue(float stamina)
+        {
+            if (stamina < 0f || stamina > 500f)
+                throw new ArgumentOutOfRangeException(nameof(stamina), $"Invalid stamina value: {stamina}");
+        }
+
+        private static void ValidateOxygenValue(float oxygen)
+        {
+            if (oxygen < 0f || oxygen > 1000f)
+                throw new ArgumentOutOfRangeException(nameof(oxygen), $"Invalid oxygen value: {oxygen}");
+        }
+
+        private void ClearCache()
+        {
+            _cachedPhysical = default;
+            _cachedStaminaObj = default;
+            _cachedOxygenObj = default;
         }
 
         public override void OnRaidStart()
         {
-            _bypassSet = default;
+            _lastEnabledState = default;
+            _bypassApplied = default;
+            ClearCache();
         }
     }
 }

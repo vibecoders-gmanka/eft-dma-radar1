@@ -1,6 +1,6 @@
 ﻿using eft_dma_shared.Common.Misc;
 using eft_dma_radar.Tarkov.EFTPlayer.Plugins;
-using eft_dma_radar.UI.Radar;
+
 using eft_dma_shared.Common.DMA;
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Players;
@@ -16,6 +16,16 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
         /// </summary>
         public static IReadOnlySet<string> WishlistItems => _wishlistItems;
         private static HashSet<string> _wishlistItems = new(StringComparer.OrdinalIgnoreCase);
+
+        private ulong HealthController { get; }
+
+        private ulong _energyPtr = 0;
+        private ulong _hydrationPtr = 0;
+
+        private float _cachedEnergy = 0f;
+        private float _cachedHydration = 0f;
+        private DateTime _lastEnergyHydrationRead = DateTime.MinValue;
+        private readonly TimeSpan _energyHydrationCacheTime = TimeSpan.FromSeconds(3);
 
         /// <summary>
         /// Spawn Point.
@@ -48,8 +58,11 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             string classType = ObjectClass.ReadName(this);
             if (!(classType == "LocalPlayer" || classType == "ClientPlayer"))
                 throw new ArgumentOutOfRangeException(nameof(classType));
+
             IsHuman = true;
+
             this.Firearm = new(this);
+
             if (IsPmc)
             {
                 var entryPtr = Memory.ReadPtr(Info + Offsets.PlayerInfo.EntryPoint);
@@ -60,6 +73,12 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
                 var profileIdPtr = Memory.ReadPtr(this.Profile + Offsets.Profile.Id);
                 ProfileId = Memory.ReadUnityString(profileIdPtr);
             }
+
+            this.HealthController = Memory.ReadPtr(this + Offsets.Player._healthController);
+
+            _energyPtr = Memory.ReadPtr(this.HealthController + Offsets.HealthSystem.Energy);
+            _hydrationPtr = Memory.ReadPtr(this.HealthController + Offsets.HealthSystem.Hydration);
+
             ulong id = ulong.Parse(AccountID);
             ILocalPlayer.AccountId = id;
         }
@@ -129,6 +148,65 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
             {
                 LoneLogging.WriteLine($"CheckIfADS() ERROR: {ex}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets the current energy level (cached, updated every 3 seconds).
+        /// </summary>
+        /// <returns>Energy level as a float.</returns>
+        public float GetEnergy()
+        {
+            try
+            {
+                if (DateTime.UtcNow - _lastEnergyHydrationRead >= _energyHydrationCacheTime)
+                    UpdateEnergyHydrationCache();
+
+                return _cachedEnergy;
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"GetEnergy() ERROR: {ex}");
+                return _cachedEnergy;
+            }
+        }
+
+        /// <summary>
+        /// Gets the current hydration level (cached, updated every 3 seconds).
+        /// </summary>
+        /// <returns>Hydration level as a float.</returns>
+        public float GetHydration()
+        {
+            try
+            {
+                if (DateTime.UtcNow - _lastEnergyHydrationRead >= _energyHydrationCacheTime)
+                    UpdateEnergyHydrationCache();
+
+                return _cachedHydration;
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"GetHydration() ERROR: {ex}");
+                return _cachedHydration;
+            }
+        }
+
+        /// <summary>
+        /// Updates the cached energy and hydration values from memory.
+        /// </summary>
+        private void UpdateEnergyHydrationCache()
+        {
+            try
+            {
+                var energyStruct = Memory.ReadValue<Types.HealthSystem>(_energyPtr + Offsets.HealthValue.Value);
+                var hydrationStruct = Memory.ReadValue<Types.HealthSystem>(_hydrationPtr + Offsets.HealthValue.Value);
+                _cachedEnergy = energyStruct.Current;
+                _cachedHydration = hydrationStruct.Current;
+                _lastEnergyHydrationRead = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"UpdateEnergyHydrationCache() ERROR: {ex}");
             }
         }
     }

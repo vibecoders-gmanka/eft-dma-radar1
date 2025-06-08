@@ -1,6 +1,7 @@
 ﻿using eft_dma_shared.Common.ESP;
 using eft_dma_shared.Common.Misc;
 using SkiaSharp;
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -20,6 +21,7 @@ namespace eft_dma_shared.Common.Unity
         /// True if Optic Camera is currently active.
         /// </summary>
         protected bool OpticCameraActive => Memory.ReadValue<bool>(OpticCamera + MonoBehaviour.IsAddedOffset, false);
+        public bool IsOpticCameraActive => OpticCameraActive;
 
         protected CameraManagerBase()
         {
@@ -67,7 +69,6 @@ namespace eft_dma_shared.Common.Unity
             }
         }
 
-
         /// <summary>
         /// Translates 3D World Positions to 2D Screen Positions.
         /// </summary>
@@ -103,6 +104,7 @@ namespace eft_dma_shared.Common.Unity
                 X = center.X * (1f + x / w),
                 Y = center.Y * (1f - y / w)
             };
+
             if (onScreenCheck)
             {
                 int left = useTolerance ? Viewport.Left - VIEWPORT_TOLERANCE : Viewport.Left;
@@ -117,6 +119,7 @@ namespace eft_dma_shared.Common.Unity
                     return false;
                 }
             }
+
             return true;
         }
 

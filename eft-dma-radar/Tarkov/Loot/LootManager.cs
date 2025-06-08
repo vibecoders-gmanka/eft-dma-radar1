@@ -1,13 +1,17 @@
 ﻿using System.Collections.Frozen;
 using eft_dma_shared.Common.Misc;
 using eft_dma_radar.Tarkov.EFTPlayer;
-using eft_dma_radar.UI.LootFilters;
-using eft_dma_radar.UI.Radar;
+
 using eft_dma_shared.Common.DMA;
 using eft_dma_shared.Common.DMA.ScatterAPI;
 using eft_dma_shared.Common.Misc.Data;
 using eft_dma_shared.Common.Unity;
 using eft_dma_shared.Common.Unity.Collections;
+using eft_dma_radar.UI.Pages;
+using eft_dma_radar.Tarkov.Features.MemoryWrites;
+using static eft_dma_shared.Common.Unity.LowLevel.ChamsManager;
+using eft_dma_radar.Tarkov.Features;
+using eft_dma_radar.Tarkov.GameWorld;
 
 namespace eft_dma_radar.Tarkov.Loot
 {
@@ -54,10 +58,10 @@ namespace eft_dma_radar.Tarkov.Loot
             {
                 try
                 {
-                    var filter = LootFilter.Create();
+                    var filter = LootFilterControl.Create();
                     FilteredLoot = UnfilteredLoot?
                         .Where(x => filter(x))
-                        .OrderByDescending(x => x.Important || (MainForm.Config.QuestHelper.Enabled && x.IsQuestCondition))
+                        .OrderByDescending(x => x.Important || (Program.Config.QuestHelper.Enabled && x.IsQuestCondition))
                         .ThenByDescending(x => x?.Price ?? 0)
                         .ToList();
                 }
@@ -156,7 +160,7 @@ namespace eft_dma_radar.Tarkov.Loot
                                                     {
                                                         ProcessLootIndex(loot, containers, deadPlayers,
                                                             interactiveClass, objectName,
-                                                            transformInternal, className);
+                                                            transformInternal, className, gameObject);
                                                     }
                                                     catch
                                                     {
@@ -181,7 +185,7 @@ namespace eft_dma_radar.Tarkov.Loot
         /// Process a single loot index.
         /// </summary>
         private static void ProcessLootIndex(List<LootItem> loot, List<StaticLootContainer> containers, IReadOnlyList<Player> deadPlayers,
-            ulong interactiveClass, string objectName, ulong transformInternal, string className)
+            ulong interactiveClass, string objectName, ulong transformInternal, string className, ulong gameObject)
         {
             var isCorpse = className.Contains("Corpse", StringComparison.OrdinalIgnoreCase);
             var isLooseLoot = className.Equals("ObservedLootItem", StringComparison.OrdinalIgnoreCase);
@@ -219,7 +223,8 @@ namespace eft_dma_radar.Tarkov.Loot
                         {
                             loot.Add(new LootAirdrop()
                             {
-                                Position = pos
+                                Position = pos,
+                                InteractiveClass = interactiveClass
                             });
                         }
                         else
@@ -232,7 +237,9 @@ namespace eft_dma_radar.Tarkov.Loot
                             bool containerOpened = Memory.ReadValue<ulong>(interactiveClass + Offsets.LootableContainer.InteractingPlayer) != 0;
                             containers.Add(new StaticLootContainer(ownerItemBsgId, containerOpened)
                             {
-                                Position = pos
+                                Position = pos,
+                                InteractiveClass = interactiveClass,
+                                GameObject = gameObject
                             });
                         }
                     }
@@ -257,7 +264,8 @@ namespace eft_dma_radar.Tarkov.Loot
                         {
                             questItem = new QuestItem(entry)
                             {
-                                Position = pos
+                                Position = pos,
+                                InteractiveClass = interactiveClass
                             };
                         }
                         else
@@ -268,7 +276,8 @@ namespace eft_dma_radar.Tarkov.Loot
                                 shortName = "Item";
                             questItem = new QuestItem(id, $"Q_{shortName}")
                             {
-                                Position = pos
+                                Position = pos,
+                                InteractiveClass = interactiveClass
                             };
                         }
                         loot.Add(questItem);
@@ -279,14 +288,14 @@ namespace eft_dma_radar.Tarkov.Loot
                         {
                             loot.Add(new LootItem(entry)
                             {
-                                Position = pos
+                                Position = pos,
+                                InteractiveClass = interactiveClass
                             });
                         }
                     }
                 }
             }
         }
-
         private static readonly FrozenSet<string> _skipSlots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "SecuredContainer", "Dogtag", "Compass", "Eyewear", "ArmBand"
@@ -396,17 +405,11 @@ namespace eft_dma_radar.Tarkov.Loot
                             GetItemsInGrid(childGridsArrayPtr, containerLoot,
                                 recurseDepth); // Recursively add children to the entity
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
-
         #endregion
-
     }
 }

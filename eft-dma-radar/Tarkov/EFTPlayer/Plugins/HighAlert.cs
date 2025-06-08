@@ -1,4 +1,5 @@
-﻿using eft_dma_radar.UI.ESP;
+﻿
+
 using eft_dma_radar.UI.Misc;
 using eft_dma_shared.Common.ESP;
 using eft_dma_shared.Common.Misc;
@@ -81,30 +82,5 @@ namespace eft_dma_radar.Tarkov.EFTPlayer.Plugins
 
             return Vector3.Normalize(direction);
         }
-    }
-
-    public enum HighAlertMode
-    {
-        [Description("Off")] Off = 0,
-        [Description("All Players/Bots")] AllPlayers = 1,
-        [Description("Human Players")] HumansOnly = 2
-    }
-
-    public sealed class HighAlertModeEntry
-    {
-        private readonly string _name;
-
-        public HighAlertModeEntry(HighAlertMode mode)
-        {
-            Value = mode;
-            _name = mode.GetDescription();
-        }
-
-        /// <summary>
-        /// Value of this entry.
-        /// </summary>
-        public HighAlertMode Value { get; }
-
-        public override string ToString() => _name;
     }
 }

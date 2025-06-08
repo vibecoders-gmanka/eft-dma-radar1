@@ -1,15 +1,17 @@
 ﻿using eft_dma_radar.Tarkov.EFTPlayer;
+using eft_dma_radar.Tarkov.EFTPlayer.Plugins;
+using eft_dma_radar.Tarkov.Features.MemoryWrites;
 using eft_dma_radar.Tarkov.GameWorld.Exits;
 using eft_dma_radar.Tarkov.GameWorld.Explosives;
 using eft_dma_radar.Tarkov.Loot;
-using eft_dma_radar.UI.Radar;
-using eft_dma_shared.Common.Features;
-using eft_dma_shared.Common.Misc;
+using eft_dma_radar.UI.Misc;
+using eft_dma_radar.UI.Pages;
 using eft_dma_shared.Common.DMA;
 using eft_dma_shared.Common.DMA.ScatterAPI;
-using eft_dma_shared.Common.Unity;
-using eft_dma_radar.Tarkov.Features.MemoryWrites;
+using eft_dma_shared.Common.Features;
+using eft_dma_shared.Common.Misc;
 using eft_dma_shared.Common.Misc.Data;
+using eft_dma_shared.Common.Unity;
 
 namespace eft_dma_radar.Tarkov.GameWorld
 {
@@ -28,22 +30,27 @@ namespace eft_dma_radar.Tarkov.GameWorld
         /// </summary>
         private ulong Base { get; }
 
+        private static Config Config => Program.Config;
+
         private static readonly WaitTimer _refreshWait = new();
         private readonly CancellationTokenSource _cts = new();
         private readonly RegisteredPlayers _rgtPlayers;
         private readonly LootManager _lootManager;
         private readonly ExitManager _exfilManager;
         private readonly ExplosivesManager _grenadeManager;
+        private readonly WorldInteractablesManager _worldInteractablesManager;
+        public WorldInteractablesManager Interactables => _worldInteractablesManager;
         private readonly Thread _t1;
         private readonly Thread _t2;
         private readonly Thread _t3;
         private readonly Thread _t4;
+        private readonly Thread _t5;
 
         /// <summary>
         /// Map ID of Current Map.
         /// </summary>
         public string MapID { get; }
-
+        public static bool IsOffline { get; private set; }
         public bool InRaid => !_disposed;
         public IReadOnlyCollection<Player> Players => _rgtPlayers;
         public IReadOnlyCollection<IExplosiveItem> Explosives => _grenadeManager;
@@ -64,7 +71,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
             {
                 try
                 {
-                    if (MainForm.Window is null || !InRaid)
+                    if (!InRaid)
                         return false;
                     return IsRaidActive();
                 }
@@ -111,6 +118,10 @@ namespace eft_dma_radar.Tarkov.GameWorld
             {
                 IsBackground = true
             };
+            _t5 = new Thread(() => { InteractablesWorker(ct); })
+            {
+                IsBackground = true
+            };
             // Reset static assets for a new raid/game.
             Player.Reset();
             var rgtPlayersAddr = Memory.ReadPtr(localGameWorld + Offsets.ClientLocalGameWorld.RegisteredPlayers, false);
@@ -120,6 +131,8 @@ namespace eft_dma_radar.Tarkov.GameWorld
             _lootManager = new(localGameWorld, ct);
             _exfilManager = new(localGameWorld, _rgtPlayers.LocalPlayer.IsPmc);
             _grenadeManager = new(localGameWorld);
+            LoneLogging.WriteLine($"[WorldInteractablesManager] Calling from LocalGameWorld: 0x{localGameWorld:X}");
+            _worldInteractablesManager = new(localGameWorld);
         }
 
         /// <summary>
@@ -131,6 +144,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
             _t2.Start();
             _t3.Start();
             _t4.Start();
+            _t5.Start();
         }
 
         /// <summary>
@@ -175,11 +189,21 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 /// Get LocalGameWorld
                 var localGameWorld = Memory.ReadPtr(MonoLib.GameWorldField, false); // Game world >> Local Game World
                 /// Get Selected Map
+                // Check if this is an offline raid
+                ulong classNamePtr = Memory.ReadPtrChain(localGameWorld, UnityOffsets.Component.To_NativeClassName, false);
+                string className = Memory.ReadString(classNamePtr, 64, false);
+                if (className == "ClientLocalGameWorld")
+                    IsOffline = true;
+                else
+                    IsOffline = false;
+
                 var mapPtr = Memory.ReadValue<ulong>(localGameWorld + Offsets.GameWorld.Location, false);
                 if (mapPtr == 0x0) // Offline Mode
                 {
                     var localPlayer = Memory.ReadPtr(localGameWorld + Offsets.ClientLocalGameWorld.MainPlayer, false);
+                    LoneLogging.WriteLine($"[DEBUG] localPlayer: 0x{localPlayer:X}");
                     mapPtr = Memory.ReadPtr(localPlayer + Offsets.Player.Location, false);
+                    LoneLogging.WriteLine($"[DEBUG] mapPtr (offline): 0x{mapPtr:X}");
                 }
 
                 var map = Memory.ReadUnityString(mapPtr, 64, false);
@@ -209,12 +233,15 @@ namespace eft_dma_radar.Tarkov.GameWorld
             }
             catch (RaidEnded)
             {
+                NotificationsShared.Info("Raid has ended!");
                 LoneLogging.WriteLine("Raid has ended!");
+                LootFilterControl.RemoveNonStaticGroups();
                 Dispose();
             }
             catch (Exception ex)
             {
                 LoneLogging.WriteLine($"CRITICAL ERROR - Raid ended due to unhandled exception: {ex}");
+                LootFilterControl.RemoveNonStaticGroups();
                 throw;
             }
         }
@@ -230,7 +257,11 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 try
                 {
                     if (!IsRaidActive())
+                    {
+                        GuardManager.ClearCache();
+                        LootFilterControl.RemoveNonStaticGroups();
                         throw new Exception("Not in raid!");
+                    }
                     return;
                 }
                 catch { Thread.Sleep(10); } // short delay between read attempts
@@ -254,6 +285,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
             }
             catch
             {
+                LootFilterControl.RemoveNonStaticGroups();
                 return false;
             }
         }
@@ -332,7 +364,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 LoneLogging.WriteLine("Realtime thread starting...");
                 while (InRaid)
                 {
-                    if (Program.Config.RatelimitRealtimeReads || !CameraManagerBase.EspRunning || (MemWriteFeature<Aimbot>.Instance.Enabled && Aimbot.Engaged))
+                    if (Config.RatelimitRealtimeReads || !CameraManagerBase.EspRunning || (MemWriteFeature<Aimbot>.Instance.Enabled && Aimbot.Engaged))
                         _refreshWait.AutoWait(TimeSpan.FromMilliseconds(1), 1000);
                     ct.ThrowIfCancellationRequested();
                     RealtimeLoop(); // Realtime update loop (player positions, etc.)
@@ -431,7 +463,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
             _exfilManager.Refresh();
             // Refresh Loot
             _lootManager.Refresh();
-            if (MainForm.Config.LootWishlist)
+            if (Config.LootWishlist)
             {
                 try
                 {
@@ -443,7 +475,7 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 }
             }
             RefreshGear(); // Update gear periodically
-            if (MainForm.Config.QuestHelper.Enabled)
+            if (Config.QuestHelper.Enabled)
                 try
                 {
                     if (QuestManager is null)
@@ -577,6 +609,33 @@ namespace eft_dma_radar.Tarkov.GameWorld
             }
         }
 
+        private void InteractablesWorker(CancellationToken ct)
+        {
+            if (_disposed) return;
+            try
+            {
+                LoneLogging.WriteLine("Interactables thread starting...");
+                while (InRaid)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    RefreshWorldInteractables();
+                    Thread.Sleep(750);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                LoneLogging.WriteLine($"CRITICAL ERROR on Interactables Thread: {ex}");
+                Dispose(); // Game object is in a corrupted state --> Dispose
+            }
+            finally
+            {
+                LoneLogging.WriteLine("Interactables thread stopping...");
+            }
+        }
+
         private void RefreshCameraManager()
         {
             try
@@ -588,7 +647,10 @@ namespace eft_dma_radar.Tarkov.GameWorld
                 //LoneLogging.WriteLine($"ERROR Refreshing Cameras! {ex}");
             }
         }
-
+        private void RefreshWorldInteractables()
+        {
+            _worldInteractablesManager.Refresh();
+        }
         /// <summary>
         /// Refresh various player items via Fast Worker Thread.
         /// </summary>

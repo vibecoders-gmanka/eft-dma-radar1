@@ -1,28 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
-    <RootNamespace>LonesEFTRadar</RootNamespace>
-    <Nullable>warnings</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <Platforms>x64</Platforms>
+	  <TargetFramework>net9.0-windows7.0</TargetFramework>
+	  <StartupObject>eft_dma_radar.Program</StartupObject>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>eft-dma-radar</AssemblyName>
+    <RootNamespace>eft_dma_radar</RootNamespace>
+    <Version>$(VersionPrefix)</Version>
     <Configurations>Debug;Release</Configurations>
+    <LangVersion>latest</LangVersion>
+    <ApplicationIcon>lone-icon.ico</ApplicationIcon>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <Nullable>warnings</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <UseWindowsForms>True</UseWindowsForms>
+	<ApplicationManifest>app.manifest</ApplicationManifest>
 	<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-	<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-	<ApplicationIcon>..\Resources\lone-icon.ico</ApplicationIcon>
-	<ServerGarbageCollection>true</ServerGarbageCollection>
-	<ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-	<RetainVMGarbageCollection>true</RetainVMGarbageCollection>
-	<Deterministic>false</Deterministic>
+	<EnableWindowsFormsHighDpiAutoResizing>true</EnableWindowsFormsHighDpiAutoResizing>
   </PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-		<DebugType>none</DebugType>
-	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-		<DebugType>none</DebugType>
-	</PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>none</DebugType>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+  </PropertyGroup>
 
 	<ItemGroup Condition="'$(Configuration)' != 'Commercial'">
 		<Content Include="..\leechcore_driver.dll">
@@ -37,7 +42,31 @@
 		<Content Include="..\leechcore.dll">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
-		<Content Include="..\Resources\Maps.bin">
+		<Content Include="..\resources\Maps.bin">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\vicheckglowpmc.bundle">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\vischeckflat.bundle">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\vischeckflatpmc.bundle">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\vischeckwireframe.bundle">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\visibilitycheck.bundle">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\DEFAULT_DATA.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\EXAMPLE_FILTERS.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="..\resources\visible.bundle">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 		<Content Include="..\symsrv.dll">
@@ -52,20 +81,66 @@
 		<Content Include="..\tinylz4.dll">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
+		<Content Include="..\resources\SDK.cs">
+ 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+ 		</Content>
+		<Content Include="..\resources\SoldierInVis.obj">
+ 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+ 		</Content>
+		<Content Include="..\resources\SoldierVis.obj">
+ 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+ 		</Content>
+		<Content Include="..\resources\ESPModel.obj">
+ 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+ 		</Content>
+		<Content Include="..\resources\ESPModel.mtl">
+ 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+ 		</Content>
 	</ItemGroup>
-	
   <ItemGroup>
-	<PackageReference Include="DarkModeForms.imerzan" Version="1.0.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="9.0.2" />
-    <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="2.88.9" />
+    <Resource Include="lone-icon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="HandyControls" Version="3.6.0" />
+    <PackageReference Include="HelixToolkit.Wpf" Version="2.27.0" />
+    <PackageReference Include="Open.Nat.imerzan" Version="2.2.0" />
+    <PackageReference Include="SkiaSharp" Version="3.119.0" />
+    <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="3.119.0" />
+    <PackageReference Include="SkiaSharp.Views.WPF" Version="3.119.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="9.0.5" />
+	<PackageReference Include="Reloaded.Assembler" Version="1.0.16" />
+	  <PackageReference Include="Svg.Skia" Version="3.0.3" />
+  </ItemGroup>
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	  <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+	</ItemGroup>  
+  <ItemGroup>
+    <Page Update="MainWindow.xaml">
+      <CopyToOutputDirectory></CopyToOutputDirectory>
+    </Page>
   </ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\eft-dma-shared\eft-dma-shared.csproj" />
 	</ItemGroup>
+	
+	<Target Name="CopyNativeDLLs" AfterTargets="Build">
+		<ItemGroup>
+			<NativeLibs Include="$(OutputPath)runtimes\win-x64\native\*.dll" />
+		</ItemGroup>
+		<Copy SourceFiles="@(NativeLibs)" DestinationFolder="$(OutputPath)" />
+	</Target>
+
 	<ItemGroup>
-	  <Reference Include="VmmFrost">
-	    <HintPath>..\VmmFrost.dll</HintPath>
+	  <Reference Include="VmmSharp">
+	    <HintPath>..\VmmSharp.dll</HintPath>
 	  </Reference>
 	</ItemGroup>
-	
+  <ItemGroup>
+	<Compile Include="obj/Debug/net8.0-windows/*.cs">
+		<AutoGen>True</AutoGen>
+	</Compile>
+</ItemGroup>
 </Project>
