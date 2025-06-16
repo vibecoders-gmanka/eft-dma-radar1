@@ -194,6 +194,9 @@ namespace eft_dma_radar.Tarkov.GameWorld.Explosives
 
         public void DrawESP(SKCanvas canvas, LocalPlayer localPlayer)
         {
+            if (!IsActive)
+                return;
+
             var dist = Vector3.Distance(localPlayer.Position, Position);
 
             if (dist > ESPSettings.RenderDistance)

@@ -8,10 +8,7 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 {
     public sealed class InstantPlant : MemWriteFeature<InstantPlant>
     {
-        private bool _lastEnabledState;
         private ulong _cachedPlantState;
-
-        private const float ORIGINAL_SPEED = 0.3f;
         private const float INSTANT_SPEED = 0.001f;
 
         public override bool Enabled
@@ -26,22 +23,26 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
         {
             try
             {
+                if (!Enabled)
+                    return;
+
                 if (Memory.LocalPlayer is not LocalPlayer localPlayer)
                     return;
 
-                if (Enabled != _lastEnabledState)
-                {
-                    var plantState = GetPlantState(localPlayer);
-                    if (!plantState.IsValidVirtualAddress())
-                        return;
+                var plantState = GetPlantState(localPlayer);
+                if (!plantState.IsValidVirtualAddress())
+                    return;
 
-                    var targetSpeed = Enabled ? INSTANT_SPEED : ORIGINAL_SPEED;
-                    writes.AddValueEntry(plantState + Offsets.MovementState.PlantTime, targetSpeed);
+                var plantTimeAddress = plantState + Offsets.MovementState.PlantTime;
+                var currentPlantTime = Memory.ReadValue<float>(plantTimeAddress);
+
+                if (currentPlantTime != INSTANT_SPEED)
+                {
+                    writes.AddValueEntry(plantTimeAddress, INSTANT_SPEED);
 
                     writes.Callbacks += () =>
                     {
-                        _lastEnabledState = Enabled;
-                        LoneLogging.WriteLine($"[InstantPlant] {(Enabled ? "Enabled" : "Disabled")} (Speed: {targetSpeed:F3})");
+                        LoneLogging.WriteLine($"[InstantPlant] Updated speed from {currentPlantTime:F6} to {INSTANT_SPEED:F6}");
                     };
                 }
             }
@@ -71,7 +72,6 @@ namespace eft_dma_radar.Tarkov.Features.MemoryWrites
 
         public override void OnRaidStart()
         {
-            _lastEnabledState = default;
             _cachedPlantState = default;
         }
     }
