@@ -1603,6 +1603,10 @@ namespace eft_dma_radar
 
         private void btnFreeMode_Click(object sender, RoutedEventArgs e)
         {
+            tglFreeFollow();
+        }
+        public void tglFreeFollow()
+        {
             _freeMode = !_freeMode;
             if (_freeMode)
             {

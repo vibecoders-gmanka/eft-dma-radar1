@@ -4,7 +4,7 @@
 ![icon-static](https://github.com/user-attachments/assets/d2b02f5a-298c-45fd-8154-2331f1f21c0f)
 
 ## What is this?
-- My lone&x0m's radar fork. Added a few QoL features for myself
+- This is an up-to-date build of Lone DMA EFT/~~Arena Radar~~. This is a standalone copy of the software with *No Restrictions*.
 
 ## How do I start using this?
 1. Download & extract the solution

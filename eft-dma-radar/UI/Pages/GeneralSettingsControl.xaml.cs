@@ -2587,6 +2587,11 @@ namespace eft_dma_radar.UI.Pages
                     Config.MemWrites.BigHead.Enabled = isActive;
                     mainWindow.MemoryWritingControl.chkBigHeads.IsChecked = isActive;
                     break;
+                case nameof(HotKeyConfig.InstantPlant):
+                    Config.MemWrites.InstantPlant = isActive;
+                    mainWindow.MemoryWritingControl.chkInstantPlant.IsChecked = isActive;
+                    break;
+
                 #endregion
 
                 #region General Settings
@@ -2619,6 +2624,9 @@ namespace eft_dma_radar.UI.Pages
                     break;
                 case nameof(HotKeyConfig.ZoomOut):
                     ExecuteContinuousAction(actionKey, () => mainWindow.ZoomOut(HK_ZoomAmt));
+                    break;
+                case nameof(HotKeyConfig.FreeFollow):
+                    mainWindow.tglFreeFollow();
                     break;
                 case nameof(HotKeyConfig.BattleMode):
                     Config.BattleMode = isActive;

@@ -108,6 +108,7 @@ namespace eft_dma_shared.Common.Misc.Data
 
         // Misc
         [JsonPropertyName("bigHeads")] public HotkeyEntry BigHeads { get; set; } = new();
+        [JsonPropertyName("instantPlant")] public HotkeyEntry InstantPlant { get; set; } = new();
         #endregion
 
         #region General Settings
@@ -120,6 +121,7 @@ namespace eft_dma_shared.Common.Misc.Data
         [JsonPropertyName("maskNames")] public HotkeyEntry MaskNames { get; set; } = new();
         [JsonPropertyName("zoomOut")] public HotkeyEntry ZoomOut { get; set; } = new();
         [JsonPropertyName("zoomIn")] public HotkeyEntry ZoomIn { get; set; } = new();
+        [JsonPropertyName("freeFollow")] public HotkeyEntry FreeFollow { get; set; } = new();
         [JsonPropertyName("battleMode")] public HotkeyEntry BattleMode { get; set; } = new();
 
         // Quest Helper
