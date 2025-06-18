@@ -1473,8 +1473,8 @@ namespace eft_dma_radar.Tarkov.EFTPlayer
 
             var aimlineLength = typeSettings.AimlineLength;
 
-            ///if (!IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
-            ///    aimlineLength = 9999;
+            if (!IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
+                aimlineLength = 9999;
 
             var aimlineEnd = GetAimlineEndpoint(point, radians, aimlineLength);
             canvas.DrawLine(point, aimlineEnd, SKPaints.ShapeOutline);
