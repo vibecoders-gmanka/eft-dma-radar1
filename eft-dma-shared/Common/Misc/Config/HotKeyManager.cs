@@ -85,6 +85,7 @@ namespace eft_dma_shared.Common.Misc.Data.EFT
         [JsonPropertyName("wideLeanRight")] public HotkeyEntry WideLeanRight { get; set; } = new();
         [JsonPropertyName("wideLeanLeft")] public HotkeyEntry WideLeanLeft { get; set; } = new();
         [JsonPropertyName("moveSpeed")] public HotkeyEntry MoveSpeed { get; set; } = new();
+        [JsonPropertyName("noFall")] public HotkeyEntry NoFall { get; set; } = new();
 
         // World
         [JsonPropertyName("disableShadows")] public HotkeyEntry DisableShadows { get; set; } = new();

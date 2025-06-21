@@ -255,6 +255,8 @@ namespace eft_dma_radar.UI.Pages
             sldrLeanAmt.ValueChanged += MemWritingSlider_ValueChanged;
             chkLongJump.Checked += MemWritingCheckbox_Checked;
             chkLongJump.Unchecked += MemWritingCheckbox_Checked;
+            chkNoFall.Checked += MemWritingCheckbox_Checked;
+            chkNoFall.Unchecked += MemWritingCheckbox_Checked;
             btnLongJumpConfig.Click += MemWritingButton_Clicked;
             sldrLongJumpMultiplier.ValueChanged += MemWritingSlider_ValueChanged;           
 
@@ -360,6 +362,7 @@ namespace eft_dma_radar.UI.Pages
             sldrLeanAmt.Value = cfg.WideLean.Amount;
             chkLongJump.IsChecked = cfg.LongJump.Enabled;
             sldrLongJumpMultiplier.Value = cfg.LongJump.Multiplier;
+            chkNoFall.IsChecked = cfg.NoFall;
 
             // World
             chkDisableShadows.IsChecked = cfg.DisableShadows;
@@ -490,6 +493,7 @@ namespace eft_dma_radar.UI.Pages
             chkFastDuck.IsEnabled = memWritingEnabled;
             chkMuleMode.IsEnabled = memWritingEnabled;
             chkNoInertia.IsEnabled = memWritingEnabled;
+            chkNoFall.IsEnabled = memWritingEnabled;
             ToggleMoveSpeedControls();
             ToggleWideLeanControls();
             ToggleLongJumpControls();
@@ -773,6 +777,7 @@ namespace eft_dma_radar.UI.Pages
             MemWriteFeature<NightVision>.Instance.Enabled = (memWritesOn && cfg.NightVision);
             MemWriteFeature<WideLean>.Instance.Enabled = (memWritesOn && cfg.WideLean.Enabled);
             MemWriteFeature<LongJump>.Instance.Enabled = (memWritesOn && cfg.LongJump.Enabled);
+            MemWriteFeature<NoFall>.Instance.Enabled = (memWritesOn && cfg.NoFall);
             MemWriteFeature<ThirdPerson>.Instance.Enabled = (memWritesOn && cfg.ThirdPerson);
             MemWriteFeature<OwlMode>.Instance.Enabled = (memWritesOn && cfg.OwlMode);
             MemWriteFeature<DisableHeadBobbing>.Instance.Enabled = (memWritesOn && cfg.DisableHeadBobbing);
@@ -1032,6 +1037,10 @@ namespace eft_dma_radar.UI.Pages
                     case "NoInertia":
                         MemWrites.Config.NoInertia = value;
                         MemWriteFeature<NoInertia>.Instance.Enabled = value;
+                        break;
+                    case "NoFall":
+                        MemWrites.Config.NoFall = value;
+                        MemWriteFeature<NoFall>.Instance.Enabled = value;
                         break;
                     case "LongJump":
                         MemWrites.Config.LongJump.Enabled = value;

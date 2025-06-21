@@ -1782,6 +1782,12 @@ namespace eft_dma_radar.UI.Misc
         public LongJumpConfig LongJump { get; set; } = new();
 
         /// <summary>
+        /// Enables no fall.
+        /// </summary>
+        [JsonPropertyName("noFall")]
+        public bool NoFall { get; set; } = false;
+
+        /// <summary>
         /// Enables big head mode.
         /// </summary>
         [JsonPropertyName("bigHead")]

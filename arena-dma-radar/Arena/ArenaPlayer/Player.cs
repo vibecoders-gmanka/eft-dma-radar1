@@ -780,8 +780,8 @@ namespace arena_dma_radar.Arena.ArenaPlayer
 
             var aimlineLength = typeSettings.AimlineLength;
 
-            if (!IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
-                aimlineLength = 9999;
+            ///if (!IsFriendly && this.IsFacingTarget(localPlayer, typeSettings.RenderDistance))
+            ///    aimlineLength = 9999;
 
             var aimlineEnd = GetAimlineEndpoint(point, radians, aimlineLength);
             canvas.DrawLine(point, aimlineEnd, SKPaints.ShapeOutline);

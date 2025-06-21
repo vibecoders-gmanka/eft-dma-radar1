@@ -2541,6 +2541,10 @@ namespace eft_dma_radar.UI.Pages
                     Config.MemWrites.MoveSpeed.Enabled = isActive;
                     mainWindow.MemoryWritingControl.chkMoveSpeed.IsChecked = isActive;
                     break;
+                case nameof(HotkeyConfig.NoFall):
+                    Config.MemWrites.NoFall = isActive;
+                    mainWindow.MemoryWritingControl.chkNoFall.IsChecked = isActive;
+                    break;
                 // World
                 case nameof(HotkeyConfig.DisableShadows):
                     Config.MemWrites.DisableShadows = isActive;
